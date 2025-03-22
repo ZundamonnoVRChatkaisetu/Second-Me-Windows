@@ -14,6 +14,7 @@ import requests
 import uuid
 import re
 import subprocess
+import shutil
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -45,8 +46,14 @@ PORT = int(os.getenv('LOCAL_APP_PORT', 8002))
 # モデルのディレクトリパス
 MODELS_DIR = os.getenv('MODELS_DIR', os.path.join(os.getcwd(), 'models'))
 
+# プロファイルディレクトリパス
+PROFILES_DIR = os.getenv('PROFILES_DIR', os.path.join(os.getcwd(), 'profiles'))
+
 # 現在選択されているモデル
 SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
+
+# 現在のアクティブプロファイル
+ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
 
 # llama.cppのパス
 LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
@@ -87,6 +94,10 @@ def get_info():
         'model': {
             'path': SELECTED_MODEL_PATH,
             'loaded': bool(SELECTED_MODEL_PATH and os.path.exists(SELECTED_MODEL_PATH))
+        },
+        'profile': {
+            'active': ACTIVE_PROFILE,
+            'exists': bool(ACTIVE_PROFILE and os.path.exists(os.path.join(PROFILES_DIR, ACTIVE_PROFILE)))
         },
         'system': {
             'start_time': START_TIME.isoformat(),
@@ -185,6 +196,21 @@ def set_model():
         global SELECTED_MODEL_PATH
         SELECTED_MODEL_PATH = model_path
         
+        # アクティブなプロファイルがある場合は設定を更新
+        if ACTIVE_PROFILE:
+            profile_config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
+            if os.path.exists(profile_config_path):
+                try:
+                    with open(profile_config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    
+                    config['model_path'] = model_path
+                    
+                    with open(profile_config_path, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    logger.error(f"Failed to update profile config: {str(e)}")
+        
         logger.info(f"Selected model: {model_path}")
         
         return jsonify({
@@ -197,6 +223,283 @@ def set_model():
         })
     except Exception as e:
         logger.exception(f"Error while setting model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profiles', methods=['GET'])
+def get_profiles():
+    """
+    プロファイル一覧を取得するエンドポイント
+    """
+    try:
+        # プロファイルディレクトリが存在しない場合は作成
+        if not os.path.exists(PROFILES_DIR):
+            os.makedirs(PROFILES_DIR)
+            return jsonify({'profiles': []})
+        
+        profiles = []
+        
+        # ディレクトリ内のプロファイルを検索
+        for item in os.listdir(PROFILES_DIR):
+            profile_dir = os.path.join(PROFILES_DIR, item)
+            
+            # ディレクトリかつconfig.jsonが存在する場合のみプロファイルとして扱う
+            if os.path.isdir(profile_dir) and os.path.exists(os.path.join(profile_dir, 'config.json')):
+                try:
+                    # 設定ファイルの読み込み
+                    with open(os.path.join(profile_dir, 'config.json'), 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    
+                    # プロファイル情報を作成
+                    profile_info = {
+                        'id': item,
+                        'name': config.get('name', item),
+                        'description': config.get('description', ''),
+                        'created_at': config.get('created_at', ''),
+                        'updated_at': config.get('updated_at', ''),
+                        'model_path': config.get('model_path', ''),
+                        'training_count': config.get('training_count', 0),
+                        'memories_count': config.get('memories_count', 0),
+                        'active': (ACTIVE_PROFILE == item)
+                    }
+                    
+                    profiles.append(profile_info)
+                except Exception as e:
+                    logger.error(f"Error reading profile {item}: {str(e)}")
+        
+        # 作成日時でソート（新しい順）
+        profiles = sorted(profiles, key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return jsonify({'profiles': profiles})
+    
+    except Exception as e:
+        logger.exception(f"Error while scanning for profiles: {str(e)}")
+        return jsonify({'error': str(e), 'profiles': []}), 500
+
+
+@app.route('/api/profiles/create', methods=['POST'])
+def create_profile():
+    """
+    新しいプロファイルを作成するエンドポイント
+    """
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        base_model_path = data.get('model_path', '')
+        
+        # 名前が必須
+        if not name:
+            return jsonify({'error': 'Profile name is required'}), 400
+        
+        # プロファイルIDの生成（名前をベースにしたスラッグ）
+        profile_id = re.sub(r'[^a-z0-9_]', '_', name.lower())
+        profile_id = f"{profile_id}_{uuid.uuid4().hex[:8]}"  # 一意性を確保するためにUUIDを追加
+        
+        # プロファイルディレクトリのパス
+        profile_dir = os.path.join(PROFILES_DIR, profile_id)
+        
+        # ディレクトリが既に存在する場合はエラー
+        if os.path.exists(profile_dir):
+            return jsonify({'error': f'Profile directory already exists: {profile_id}'}), 400
+        
+        # プロファイルディレクトリ構造を作成
+        os.makedirs(profile_dir)
+        os.makedirs(os.path.join(profile_dir, 'memories'))
+        os.makedirs(os.path.join(profile_dir, 'training_data'))
+        
+        # 現在の日時
+        now = datetime.now().isoformat()
+        
+        # 設定ファイルの作成
+        config = {
+            'name': name,
+            'description': description,
+            'created_at': now,
+            'updated_at': now,
+            'model_path': base_model_path,
+            'training_count': 0,
+            'memories_count': 0
+        }
+        
+        with open(os.path.join(profile_dir, 'config.json'), 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        # 新しいプロファイルをアクティブにする
+        global ACTIVE_PROFILE, SELECTED_MODEL_PATH
+        ACTIVE_PROFILE = profile_id
+        
+        # モデルパスが指定されていれば選択する
+        if base_model_path and os.path.exists(base_model_path):
+            SELECTED_MODEL_PATH = base_model_path
+        
+        logger.info(f"Created new profile: {profile_id} (name: {name})")
+        
+        return jsonify({
+            'status': 'success',
+            'profile': {
+                'id': profile_id,
+                'name': name,
+                'description': description,
+                'created_at': now,
+                'updated_at': now,
+                'model_path': base_model_path,
+                'active': True
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error while creating profile: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profiles/activate', methods=['POST'])
+def activate_profile():
+    """
+    プロファイルをアクティブにするエンドポイント
+    """
+    try:
+        data = request.json
+        profile_id = data.get('profile_id')
+        
+        if not profile_id:
+            return jsonify({'error': 'Profile ID is required'}), 400
+        
+        # プロファイルが存在するか確認
+        profile_dir = os.path.join(PROFILES_DIR, profile_id)
+        config_path = os.path.join(profile_dir, 'config.json')
+        
+        if not os.path.exists(profile_dir) or not os.path.exists(config_path):
+            return jsonify({'error': f'Profile not found: {profile_id}'}), 404
+        
+        # 設定ファイルの読み込み
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # グローバル変数を更新
+        global ACTIVE_PROFILE, SELECTED_MODEL_PATH
+        ACTIVE_PROFILE = profile_id
+        
+        # モデルパスも設定
+        model_path = config.get('model_path', '')
+        if model_path and os.path.exists(model_path):
+            SELECTED_MODEL_PATH = model_path
+        
+        logger.info(f"Activated profile: {profile_id}")
+        
+        return jsonify({
+            'status': 'success',
+            'profile': {
+                'id': profile_id,
+                'name': config.get('name', profile_id),
+                'model_path': SELECTED_MODEL_PATH
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error while activating profile: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profiles/update', methods=['POST'])
+def update_profile():
+    """
+    プロファイル情報を更新するエンドポイント
+    """
+    try:
+        data = request.json
+        profile_id = data.get('profile_id')
+        
+        if not profile_id:
+            return jsonify({'error': 'Profile ID is required'}), 400
+        
+        # プロファイルが存在するか確認
+        profile_dir = os.path.join(PROFILES_DIR, profile_id)
+        config_path = os.path.join(profile_dir, 'config.json')
+        
+        if not os.path.exists(profile_dir) or not os.path.exists(config_path):
+            return jsonify({'error': f'Profile not found: {profile_id}'}), 404
+        
+        # 設定ファイルの読み込み
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # 更新可能なフィールド
+        update_fields = ['name', 'description', 'model_path']
+        updated = False
+        
+        for field in update_fields:
+            if field in data and data[field] is not None:
+                config[field] = data[field]
+                updated = True
+        
+        if updated:
+            # 更新日時を設定
+            config['updated_at'] = datetime.now().isoformat()
+            
+            # 設定ファイルを保存
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            
+            # 現在アクティブなプロファイルを更新した場合は、グローバル変数も更新
+            if ACTIVE_PROFILE == profile_id and 'model_path' in data:
+                global SELECTED_MODEL_PATH
+                model_path = data['model_path']
+                if model_path and os.path.exists(model_path):
+                    SELECTED_MODEL_PATH = model_path
+            
+            logger.info(f"Updated profile: {profile_id}")
+        
+        return jsonify({
+            'status': 'success',
+            'profile': {
+                'id': profile_id,
+                'name': config.get('name', profile_id),
+                'description': config.get('description', ''),
+                'model_path': config.get('model_path', ''),
+                'updated_at': config.get('updated_at', '')
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error while updating profile: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profiles/delete', methods=['POST'])
+def delete_profile():
+    """
+    プロファイルを削除するエンドポイント
+    """
+    try:
+        data = request.json
+        profile_id = data.get('profile_id')
+        
+        if not profile_id:
+            return jsonify({'error': 'Profile ID is required'}), 400
+        
+        # プロファイルが存在するか確認
+        profile_dir = os.path.join(PROFILES_DIR, profile_id)
+        
+        if not os.path.exists(profile_dir):
+            return jsonify({'error': f'Profile not found: {profile_id}'}), 404
+        
+        # 現在アクティブなプロファイルは削除できない（前もって別のプロファイルをアクティブにする必要がある）
+        if ACTIVE_PROFILE == profile_id:
+            return jsonify({'error': 'Cannot delete the active profile. Please activate another profile first.'}), 400
+        
+        # プロファイルディレクトリを削除
+        shutil.rmtree(profile_dir)
+        
+        logger.info(f"Deleted profile: {profile_id}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Profile {profile_id} deleted successfully'
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error while deleting profile: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -235,8 +538,21 @@ def chat():
         })
     
     try:
-        # llama.cppへのプロンプト作成
-        prompt = f"USER: {message}\nASSISTANT:"
+        # 現在のプロファイル名を取得（存在する場合）
+        profile_name = ""
+        if ACTIVE_PROFILE:
+            config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    profile_name = config.get('name', ACTIVE_PROFILE)
+        
+        # llama.cppへのプロンプト作成（プロファイル情報を含める）
+        if profile_name:
+            system_prompt = f"あなたは{profile_name}です。ユーザーの質問に丁寧に答えてください。"
+            prompt = f"<s>[INST] {system_prompt} [/INST]</s>\n\n[INST] {message} [/INST]"
+        else:
+            prompt = f"<s>[INST] {message} [/INST]</s>"
         
         # llama.cppコマンドの構築
         cmd = [
@@ -282,7 +598,12 @@ def chat():
             })
         
         # 応答の抽出
-        assistant_response = stdout.split('ASSISTANT:')[-1].strip()
+        assistant_response = ""
+        if "[/INST]" in stdout:
+            # 最後の[/INST]の後の部分を取得
+            assistant_response = stdout.split("[/INST]")[-1].strip()
+        else:
+            assistant_response = stdout.strip()
         
         # 応答が空の場合
         if not assistant_response:
@@ -308,29 +629,110 @@ def chat():
 
 @app.route('/api/memory', methods=['GET'])
 def list_memories():
-    """メモリーリストエンドポイント (プレースホルダー)"""
-    # ダミーデータ
-    memories = [
-        {'id': 1, 'content': 'これは記憶サンプル1です', 'created_at': '2025-03-22T10:00:00'},
-        {'id': 2, 'content': 'これは記憶サンプル2です', 'created_at': '2025-03-22T11:00:00'}
-    ]
-    return jsonify({'memories': memories})
+    """メモリーリストエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # プロファイルのメモリーディレクトリ
+        memories_dir = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories')
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(memories_dir):
+            os.makedirs(memories_dir)
+            return jsonify({'memories': []})
+        
+        memories = []
+        
+        # メモリーファイル（JSON）を読み込む
+        for filename in os.listdir(memories_dir):
+            if filename.endswith('.json'):
+                try:
+                    file_path = os.path.join(memories_dir, filename)
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        memory = json.load(f)
+                    
+                    # メモリーIDとしてファイル名（拡張子なし）を使用
+                    memory_id = os.path.splitext(filename)[0]
+                    memory['id'] = memory_id
+                    
+                    memories.append(memory)
+                except Exception as e:
+                    logger.error(f"Error reading memory file {filename}: {str(e)}")
+        
+        # 作成日時でソート（新しい順）
+        memories = sorted(memories, key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return jsonify({'memories': memories})
+    
+    except Exception as e:
+        logger.exception(f"Error listing memories: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/memory', methods=['POST'])
 def add_memory():
-    """メモリー追加エンドポイント (プレースホルダー)"""
-    data = request.json
-    content = data.get('content', '')
+    """メモリー追加エンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        data = request.json
+        content = data.get('content', '').strip()
+        
+        if not content:
+            return jsonify({'error': 'Memory content is required'}), 400
+        
+        # プロファイルのメモリーディレクトリ
+        memories_dir = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories')
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(memories_dir):
+            os.makedirs(memories_dir)
+        
+        # 現在の日時
+        now = datetime.now().isoformat()
+        
+        # 一意のIDを生成
+        memory_id = str(uuid.uuid4())
+        
+        # メモリーを作成
+        memory = {
+            'content': content,
+            'created_at': now,
+            'updated_at': now,
+            'profile_id': ACTIVE_PROFILE
+        }
+        
+        # JSONファイルとして保存
+        with open(os.path.join(memories_dir, f"{memory_id}.json"), 'w', encoding='utf-8') as f:
+            json.dump(memory, f, ensure_ascii=False, indent=2)
+        
+        # プロファイル設定を更新してメモリー数をインクリメント
+        config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # メモリー数を更新
+                config['memories_count'] = config.get('memories_count', 0) + 1
+                config['updated_at'] = now
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to update profile config: {str(e)}")
+        
+        # 結果を返す
+        memory['id'] = memory_id
+        return jsonify({'memory': memory, 'status': 'success'})
     
-    # ダミー応答
-    new_memory = {
-        'id': 3,  # 実際にはDBで生成
-        'content': content,
-        'created_at': datetime.now().isoformat()
-    }
-    
-    return jsonify({'memory': new_memory, 'status': 'success'})
+    except Exception as e:
+        logger.exception(f"Error adding memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 def allowed_file(filename):
@@ -348,6 +750,13 @@ def upload_file():
     multipart/form-dataでファイルとカテゴリを受け取る
     """
     logger.info("File upload request received")
+    
+    # アクティブなプロファイルをチェック
+    profile_training_dir = None
+    if ACTIVE_PROFILE:
+        profile_training_dir = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'training_data')
+        if not os.path.exists(profile_training_dir):
+            os.makedirs(profile_training_dir)
     
     # アップロードフォルダが存在しなければ作成
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
@@ -393,6 +802,12 @@ def upload_file():
         
         logger.info(f"File saved successfully: {file_path}")
         
+        # アクティブなプロファイルがある場合、トレーニングディレクトリにも保存（トレーニングデータ用）
+        if profile_training_dir:
+            profile_file_path = os.path.join(profile_training_dir, filename)
+            shutil.copy2(file_path, profile_file_path)
+            logger.info(f"File also saved to profile training directory: {profile_file_path}")
+        
         # 成功レスポンス
         return jsonify({
             'filename': original_filename,
@@ -418,16 +833,29 @@ def list_files():
     クエリパラメータでカテゴリを指定できる
     """
     category = request.args.get('category', 'general')
-    category_folder = os.path.join(app.config['UPLOAD_FOLDER'], category)
+    profile_id = request.args.get('profile_id', ACTIVE_PROFILE)  # アクティブなプロファイルがデフォルト
     
-    # カテゴリフォルダが存在しなければ作成
-    if not os.path.exists(category_folder):
-        os.makedirs(category_folder)
+    # プロファイルが指定されている場合はトレーニングデータを取得
+    if profile_id:
+        training_dir = os.path.join(PROFILES_DIR, profile_id, 'training_data')
+        if os.path.exists(training_dir):
+            return list_files_from_directory(training_dir)
+    
+    # 通常のカテゴリフォルダからファイルを取得
+    category_folder = os.path.join(app.config['UPLOAD_FOLDER'], category)
+    return list_files_from_directory(category_folder)
+
+
+def list_files_from_directory(directory):
+    """指定されたディレクトリからファイル一覧を取得する汎用関数"""
+    # ディレクトリが存在しなければ作成
+    if not os.path.exists(directory):
+        os.makedirs(directory)
         return jsonify({'files': []})
     
     files = []
-    for filename in os.listdir(category_folder):
-        file_path = os.path.join(category_folder, filename)
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
         if os.path.isfile(file_path):
             # ファイル名から元のファイル名を抽出（UUID_元のファイル名の形式）
             original_filename = '_'.join(filename.split('_')[1:]) if '_' in filename else filename
@@ -442,16 +870,15 @@ def list_files():
 
 
 if __name__ == '__main__':
-    # ディレクトリ存在確認
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
+    # ディレクトリ存在確認と作成
+    for directory in ['logs', MODELS_DIR, PROFILES_DIR, UPLOAD_FOLDER]:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
     
-    if not os.path.exists(MODELS_DIR):
-        os.makedirs(MODELS_DIR)
-        
     logger.info(f"Starting Second Me backend on port {PORT}")
     logger.info(f"Log level: {log_level}")
     logger.info(f"Models directory: {MODELS_DIR}")
+    logger.info(f"Profiles directory: {PROFILES_DIR}")
     
     # llama.cppの実行ファイルの存在確認
     if not os.path.exists(LLAMACPP_MAIN):
@@ -473,6 +900,39 @@ if __name__ == '__main__':
             logger.warning(f"No model files found in {MODELS_DIR}")
     except Exception as e:
         logger.warning(f"Error scanning models directory: {str(e)}")
+    
+    # プロファイルディレクトリの検索
+    try:
+        profiles = []
+        if os.path.exists(PROFILES_DIR):
+            for item in os.listdir(PROFILES_DIR):
+                profile_dir = os.path.join(PROFILES_DIR, item)
+                config_path = os.path.join(profile_dir, 'config.json')
+                if os.path.isdir(profile_dir) and os.path.exists(config_path):
+                    profiles.append(item)
+        
+        if profiles:
+            logger.info(f"Found {len(profiles)} profiles")
+            
+            # アクティブなプロファイルが設定されていなければ、最初のプロファイルを選択
+            if not ACTIVE_PROFILE:
+                ACTIVE_PROFILE = profiles[0]
+                logger.info(f"Auto-selected profile: {ACTIVE_PROFILE}")
+                
+                # プロファイルのモデルも選択
+                try:
+                    with open(os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json'), 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    model_path = config.get('model_path', '')
+                    if model_path and os.path.exists(model_path):
+                        SELECTED_MODEL_PATH = model_path
+                        logger.info(f"Using profile's model: {SELECTED_MODEL_PATH}")
+                except Exception as e:
+                    logger.error(f"Failed to load profile config: {str(e)}")
+        else:
+            logger.info("No profiles found, will create default profile if needed")
+    except Exception as e:
+        logger.warning(f"Error scanning profiles directory: {str(e)}")
     
     # Flaskアプリケーション起動
     app.run(host='0.0.0.0', port=PORT, debug=False)

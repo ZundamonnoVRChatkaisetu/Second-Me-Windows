@@ -20,6 +20,7 @@ export default function CreateProfilePage() {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [redirectToChat, setRedirectToChat] = useState(true); // チャットページにリダイレクトするオプション（デフォルトはtrue）
 
   // モデル一覧を取得
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function CreateProfilePage() {
     e.preventDefault();
     
     if (!name.trim()) {
-      setError('プロファイル名を入力してください');
+      setError('第2の自分の名前を入力してください');
       return;
     }
     
@@ -60,11 +61,20 @@ export default function CreateProfilePage() {
         model_path: selectedModelPath
       });
       
-      // 成功したら、プロファイル一覧ページにリダイレクト
-      router.push('/profiles');
+      // 作成したプロファイルをアクティブにする
+      await axios.post('/api/profiles/activate', {
+        profile_id: response.data.profile_id
+      });
+      
+      // 成功したら、選択した遷移先にリダイレクト
+      if (redirectToChat) {
+        router.push('/chat');
+      } else {
+        router.push('/profiles');
+      }
     } catch (err: any) {
       console.error('Failed to create profile:', err);
-      setError(`プロファイルの作成に失敗しました: ${err.response?.data?.error || err.message}`);
+      setError(`第2の自分の作成に失敗しました: ${err.response?.data?.error || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -82,10 +92,23 @@ export default function CreateProfilePage() {
           <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm p-8">
             {/* ヘッダー */}
             <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold">新しい第2の自分を作成</h1>
+              <h1 className="text-2xl font-bold">第2の自分を作成</h1>
               <Link href="/profiles" passHref>
                 <Button variant="outline">キャンセル</Button>
               </Link>
+            </div>
+
+            {/* 概要説明 */}
+            <div className="mb-6 p-4 bg-blue-50 text-blue-800 rounded-md">
+              <h2 className="font-medium text-lg mb-2">第2の自分とは？</h2>
+              <p className="mb-2">
+                第2の自分（Second Me）は、あなた自身のAI表現です。あなたの思考や知識、性格を反映し、
+                あなたがいない場所でもあなたの代わりに応答することができます。
+              </p>
+              <p>
+                まずは名前とその目的をつけましょう。例えば、「仕事用アシスタント」や「創作アイデア発想」など、
+                用途に合わせた第2の自分を作ることができます。
+              </p>
             </div>
 
             {error && (
@@ -98,7 +121,7 @@ export default function CreateProfilePage() {
               {/* プロファイル名 */}
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                  プロファイル名 <span className="text-red-500">*</span>
+                  第2の自分の名前 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -109,13 +132,13 @@ export default function CreateProfilePage() {
                   placeholder="あなたの第2の自分の名前"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">例：「仕事用アシスタント」「英語学習サポーター」など</p>
+                <p className="text-xs text-gray-500 mt-1">例：「仕事用アシスタント」「英語学習サポーター」「創作パートナー」など</p>
               </div>
 
               {/* 説明 */}
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                  説明
+                  目的・特徴
                 </label>
                 <textarea
                   id="description"
@@ -123,8 +146,11 @@ export default function CreateProfilePage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="このプロファイルの説明や用途など"
+                  placeholder="この第2の自分の目的や特徴を書いてみましょう"
                 ></textarea>
+                <p className="text-xs text-gray-500 mt-1">
+                  例：「ビジネス文書作成の支援」「プログラミング学習のガイド」「創作アイデアを広げるための対話相手」など
+                </p>
               </div>
 
               {/* ベースモデル選択 */}
@@ -150,7 +176,28 @@ export default function CreateProfilePage() {
                     ))}
                   </select>
                 )}
-                <p className="text-xs text-gray-500 mt-1">このプロファイルで使用するベースモデルを選択します</p>
+                <p className="text-xs text-gray-500 mt-1">この第2の自分の基盤となるAIモデルを選択します。より高性能なモデルほど表現力が豊かになります。</p>
+              </div>
+
+              {/* リダイレクト先オプション */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="redirect-option"
+                  checked={redirectToChat}
+                  onChange={(e) => setRedirectToChat(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="redirect-option" className="text-sm text-gray-700">
+                  作成後、すぐにチャットを開始する
+                </label>
+              </div>
+
+              {/* メッセージ */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <p className="text-sm text-gray-600">
+                  作成後、あなたは第2の自分とチャットを通じて対話できます。また、後からメモリーデータをアップロードすることで、第2の自分をあなたにより近づけることができます。
+                </p>
               </div>
 
               {/* 送信ボタン */}
@@ -160,7 +207,7 @@ export default function CreateProfilePage() {
                   disabled={loading || !name.trim() || models.length === 0}
                   className="px-6 py-2"
                 >
-                  {loading ? '作成中...' : '作成する'}
+                  {loading ? '作成中...' : '第2の自分を作成する'}
                 </Button>
               </div>
             </form>

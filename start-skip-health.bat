@@ -5,8 +5,8 @@ echo    Second-Me Windows - Health Check Skip Starter
 echo  ================================================
 echo.
 
-echo ヘルスチェックをスキップしてサービスを起動します。
-echo バックエンドが正常に起動するまで数分かかる場合があります。
+echo Starting services with health check skipped.
+echo Backend startup might take a few minutes.
 echo.
 
 call scripts\start.bat --skip-health-check

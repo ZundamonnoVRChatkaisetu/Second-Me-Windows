@@ -15,6 +15,7 @@ import uuid
 import re
 import subprocess
 import shutil
+import time
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -65,7 +66,7 @@ SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
 ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
 
 # llama.cppのパス
-LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'llama.cpp', 'build', 'bin', 'Release'))
+LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
 
 # Windows環境かどうかを確認
 IS_WINDOWS = sys.platform.startswith('win')
@@ -607,41 +608,142 @@ def chat():
         })
     
     try:
-        # 現在のプロファイル名を取得（存在する場合）
-        profile_name = ""
-        if ACTIVE_PROFILE:
-            config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    profile_name = config.get('name', ACTIVE_PROFILE)
-        
-        # llama.cppへのプロンプト作成（プロファイル情報を含める）
-        if profile_name:
-            system_prompt = f"あなたは{profile_name}です。ユーザーの質問に丁寧に答えてください。"
-            prompt = f"<s>[INST] {system_prompt} [/INST]</s>\n\n[INST] {message} [/INST]"
-        else:
-            prompt = f"<s>[INST] {message} [/INST]</s>"
-        
         # llama-server.exeを使用する場合（Windowsの場合）
         if IS_WINDOWS and LLAMACPP_MAIN.endswith('llama-server.exe'):
-            # llama-serverはREST APIを使用するためセットアップが異なります
-            # llama-serverの起動コマンド（すでに実行中でない場合）
-            # この部分は実際の実装に合わせて調整が必要です
-            server_process = None
             try:
-                # サーバーに接続してチャットリクエストを送信
-                # 実際のエンドポイントやパラメータは実装に合わせて調整
-                chat_response = "llama-server.exeを使用したチャット機能は現在実装中です。後のバージョンで提供予定です。"
-            finally:
-                # サーバープロセスのクリーンアップ（必要に応じて）
-                if server_process:
-                    server_process.terminate()
+                # llama-serverを起動（すでに実行中でない場合）
+                server_url = "http://localhost:8080"
+                server_process = None
+                
+                # サーバープロセスが起動しているか確認
+                try:
+                    server_status = requests.get(f"{server_url}/health", timeout=1)
+                    server_running = server_status.status_code == 200
+                    logger.info("llama-server is already running")
+                except:
+                    server_running = False
+                    logger.info("llama-server is not running, starting it now")
+
+                # サーバーが動いていない場合は起動
+                if not server_running:
+                    # サーバー起動コマンド
+                    server_cmd = [
+                        LLAMACPP_MAIN,
+                        "-m", SELECTED_MODEL_PATH,
+                        "--host", "127.0.0.1",
+                        "--port", "8080",
+                        "-c", "2048",  # コンテキストサイズ
+                        "--log-level", "info",
+                        "-ngl", "1"  # GPUレイヤー数（GPUを使用する場合）
+                    ]
+                    
+                    logger.info(f"Starting llama-server with command: {' '.join(server_cmd)}")
+                    
+                    # llama-serverをバックグラウンドで起動
+                    server_process = subprocess.Popen(
+                        server_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding='utf-8'
+                    )
+                    
+                    # サーバーが起動するまで少し待機
+                    for _ in range(5):  # 最大5秒待機
+                        try:
+                            time.sleep(1)
+                            server_status = requests.get(f"{server_url}/health", timeout=1)
+                            if server_status.status_code == 200:
+                                server_running = True
+                                logger.info("llama-server started successfully")
+                                break
+                        except:
+                            continue
+
+                # サーバーが実行中であれば、チャットリクエストを送信
+                if server_running:
+                    # 現在のプロファイル名を取得（存在する場合）
+                    profile_name = ""
+                    if ACTIVE_PROFILE:
+                        config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
+                        if os.path.exists(config_path):
+                            with open(config_path, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                                profile_name = config.get('name', ACTIVE_PROFILE)
+                    
+                    # システムプロンプトの設定
+                    if profile_name:
+                        system_prompt = f"あなたは{profile_name}です。ユーザーの質問に丁寧に答えてください。"
+                    else:
+                        system_prompt = "ユーザーの質問に丁寧に答えてください。"
+                    
+                    # llama-server APIリクエスト用のデータ構築
+                    chat_data = {
+                        "stream": False,
+                        "n_predict": 1024,
+                        "temperature": 0.7,
+                        "stop": ["[/INST]", "</s>"],
+                        "repeat_last_n": 256,
+                        "repeat_penalty": 1.1,
+                        "top_k": 40,
+                        "top_p": 0.9,
+                        "tfs_z": 1.0,
+                        "typical_p": 1.0,
+                        "presence_penalty": 0.0,
+                        "frequency_penalty": 0.0,
+                        "mirostat": 0,
+                        "mirostat_tau": 5.0,
+                        "mirostat_eta": 0.1,
+                        "grammar": "",
+                        "n_probs": 0,
+                        "image_data": [],
+                        "cache_prompt": True,
+                        "slot_id": -1,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": message}
+                        ]
+                    }
+                    
+                    # llama-serverにリクエスト送信
+                    try:
+                        logger.info(f"Sending chat request to llama-server: {message[:50]}...")
+                        response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=chat_data,
+                            timeout=60  # タイムアウト60秒
+                        )
+                        
+                        if response.status_code == 200:
+                            # レスポンス解析
+                            response_data = response.json()
+                            if "choices" in response_data and len(response_data["choices"]) > 0:
+                                chat_response = response_data["choices"][0]["message"]["content"]
+                            else:
+                                chat_response = "応答の解析中にエラーが発生しました。詳細: " + str(response_data)
+                        else:
+                            chat_response = f"サーバーからエラーレスポンスが返されました。ステータスコード: {response.status_code}"
+                            logger.error(f"Error response from llama-server: {response.status_code} - {response.text}")
+                    except Exception as e:
+                        chat_response = f"llama-serverとの通信中にエラーが発生しました: {str(e)}"
+                        logger.exception("Error communicating with llama-server")
+                else:
+                    chat_response = "llama-serverの起動に失敗しました。セットアップを確認してください。"
+                    logger.error("Failed to start llama-server")
+                    
+                # サーバープロセスは継続して実行（終了時に自動的にクリーンアップされる）
+                
+                return jsonify({
+                    'message': chat_response,
+                    'timestamp': datetime.now().isoformat()
+                })
             
-            return jsonify({
-                'message': chat_response,
-                'timestamp': datetime.now().isoformat()
-            })
+            except Exception as e:
+                logger.exception(f"Error during llama-server chat processing: {str(e)}")
+                return jsonify({
+                    'message': f"エラーが発生しました: {str(e)}",
+                    'timestamp': datetime.now().isoformat()
+                })
         
         # 通常のmain実行ファイルを使用する場合
         else:

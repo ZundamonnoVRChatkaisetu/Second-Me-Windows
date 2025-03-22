@@ -12,6 +12,8 @@ import json
 import logging
 import requests
 import uuid
+import re
+import subprocess
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -40,11 +42,15 @@ CORS(app)  # クロスオリジンリソース共有を有効化
 # ポート設定
 PORT = int(os.getenv('LOCAL_APP_PORT', 8002))
 
-# モデルパス（現在選択されているモデル名を保持）
-MODEL_PATH = os.getenv('MODEL_PATH', '')
+# モデルのディレクトリパス
+MODELS_DIR = os.getenv('MODELS_DIR', os.path.join(os.getcwd(), 'models'))
 
-# Ollama設定
-OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+# 現在選択されているモデル
+SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
+
+# llama.cppのパス
+LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
+LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main')
 
 # ファイルアップロード設定
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))
@@ -79,8 +85,8 @@ def get_info():
             'log_level': log_level
         },
         'model': {
-            'path': MODEL_PATH,
-            'loaded': bool(MODEL_PATH)
+            'path': SELECTED_MODEL_PATH,
+            'loaded': bool(SELECTED_MODEL_PATH and os.path.exists(SELECTED_MODEL_PATH))
         },
         'system': {
             'start_time': START_TIME.isoformat(),
@@ -100,75 +106,202 @@ def echo():
     })
 
 
+@app.route('/api/models', methods=['GET'])
+def get_models():
+    """
+    /modelsディレクトリから利用可能なモデルファイルの一覧を取得
+    """
+    try:
+        # /modelsディレクトリが存在しない場合は作成
+        if not os.path.exists(MODELS_DIR):
+            os.makedirs(MODELS_DIR)
+            return jsonify({'models': []})
+        
+        # モデルファイル検索パターン
+        model_patterns = [
+            r'.*\.gguf$',  # llama.cpp モデル（GGUF形式）
+            r'.*\.bin$',   # 一般的なバイナリモデル
+            r'.*\.pt$',    # PyTorch モデル
+            r'.*\.ggml$'   # 旧GGML形式モデル
+        ]
+        
+        models = []
+        
+        # ディレクトリ内のファイルを検索
+        for root, dirs, files in os.walk(MODELS_DIR):
+            for file in files:
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, MODELS_DIR)
+                
+                # ファイルが指定パターンに一致するか確認
+                if any(re.match(pattern, file) for pattern in model_patterns):
+                    # ファイルサイズをGB単位で計算
+                    size_bytes = os.path.getsize(file_path)
+                    size_gb = round(size_bytes / (1024 * 1024 * 1024), 2)
+                    
+                    # モデル情報を追加
+                    model_info = {
+                        'name': file,
+                        'path': file_path,
+                        'rel_path': rel_path,
+                        'size': size_gb,
+                        'size_bytes': size_bytes,
+                        'modified_at': datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
+                    }
+                    
+                    # 現在選択されているモデルかどうかを追加
+                    if SELECTED_MODEL_PATH and os.path.samefile(file_path, SELECTED_MODEL_PATH):
+                        model_info['selected'] = True
+                    else:
+                        model_info['selected'] = False
+                    
+                    models.append(model_info)
+        
+        # 修正日時でソート（新しい順）
+        models = sorted(models, key=lambda x: x['modified_at'], reverse=True)
+        
+        return jsonify({'models': models})
+    
+    except Exception as e:
+        logger.exception(f"Error while scanning for models: {str(e)}")
+        return jsonify({'error': str(e), 'models': []}), 500
+
+
+@app.route('/api/models/set', methods=['POST'])
+def set_model():
+    """モデルを選択するエンドポイント"""
+    try:
+        data = request.json
+        model_path = data.get('model_path')
+        
+        if not model_path:
+            return jsonify({'error': 'Model path is required'}), 400
+        
+        # モデルが存在するか確認
+        if not os.path.exists(model_path):
+            return jsonify({'error': f'Model file not found at {model_path}'}), 404
+        
+        # グローバル変数を更新
+        global SELECTED_MODEL_PATH
+        SELECTED_MODEL_PATH = model_path
+        
+        logger.info(f"Selected model: {model_path}")
+        
+        return jsonify({
+            'status': 'success',
+            'model': {
+                'path': model_path,
+                'name': os.path.basename(model_path)
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.exception(f"Error while setting model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """
     チャットエンドポイント
-    Ollamaを使用してメッセージに応答
+    llama.cppを使用してローカルモデルで応答を生成
     """
     data = request.json
     message = data.get('message', '')
     logger.info(f"Chat request received with message: {message}")
     
-    # モデルが設定されているか確認
-    if not MODEL_PATH:
-        logger.warning("No model selected, returning dummy response")
+    # モデルが選択されているか確認
+    if not SELECTED_MODEL_PATH:
+        logger.warning("No model selected, returning error message")
         return jsonify({
             'message': "モデルが選択されていません。設定ページでモデルを選択してください。",
             'timestamp': datetime.now().isoformat()
         })
     
+    # モデルファイルが存在するか確認
+    if not os.path.exists(SELECTED_MODEL_PATH):
+        logger.error(f"Selected model file not found: {SELECTED_MODEL_PATH}")
+        return jsonify({
+            'message': f"選択されたモデルファイルが見つかりません: {SELECTED_MODEL_PATH}",
+            'timestamp': datetime.now().isoformat()
+        })
+    
+    # llamacpp実行可能ファイルが存在するか確認
+    if not os.path.exists(LLAMACPP_MAIN):
+        logger.error(f"llama.cpp executable not found at {LLAMACPP_MAIN}")
+        return jsonify({
+            'message': "llama.cpp実行ファイルが見つかりません。セットアップを確認してください。",
+            'timestamp': datetime.now().isoformat()
+        })
+    
     try:
-        # Ollamaへのリクエスト
-        ollama_response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/chat",
-            json={
-                "model": MODEL_PATH,
-                "messages": [
-                    {"role": "user", "content": message}
-                ],
-                "stream": False
-            },
-            timeout=60  # タイムアウトを60秒に設定
+        # llama.cppへのプロンプト作成
+        prompt = f"USER: {message}\nASSISTANT:"
+        
+        # llama.cppコマンドの構築
+        cmd = [
+            LLAMACPP_MAIN,
+            '-m', SELECTED_MODEL_PATH,
+            '-p', prompt,
+            '--ctx-size', '2048',
+            '--temp', '0.7',
+            '--top-p', '0.9',
+            '--seed', '-1',
+            '-n', '1024',
+            '--repeat-penalty', '1.1',
+            '-ngl', '1'  # GPUレイヤー数（GPUを使用する場合）
+        ]
+        
+        logger.info(f"Running command: {' '.join(cmd)}")
+        
+        # サブプロセスとして実行（タイムアウト60秒）
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8'
         )
         
-        # レスポンスの確認
-        if ollama_response.status_code == 200:
-            # 成功した場合の応答内容を取得
-            response_data = ollama_response.json()
-            content = response_data.get('message', {}).get('content', '')
-            
-            if not content:
-                logger.error(f"Ollama returned empty content: {response_data}")
-                return jsonify({
-                    'message': "Ollamaからの応答が空でした。再度お試しください。",
-                    'timestamp': datetime.now().isoformat()
-                })
-            
-            # 成功レスポンス
+        try:
+            stdout, stderr = process.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            logger.error("llama.cpp process timed out")
             return jsonify({
-                'message': content,
+                'message': "応答生成がタイムアウトしました。再度お試しください。",
                 'timestamp': datetime.now().isoformat()
             })
-        else:
-            # エラーレスポンス
-            logger.error(f"Ollama API error: {ollama_response.status_code} - {ollama_response.text}")
+        
+        # エラーチェック
+        if process.returncode != 0:
+            logger.error(f"llama.cpp process failed with code {process.returncode}: {stderr}")
             return jsonify({
-                'message': f"Ollamaからのエラー応答: {ollama_response.status_code}",
+                'message': f"モデル実行中にエラーが発生しました: {stderr[:200]}...",
                 'timestamp': datetime.now().isoformat()
             })
-    
-    except requests.exceptions.Timeout:
-        logger.error("Ollama API request timed out")
+        
+        # 応答の抽出
+        assistant_response = stdout.split('ASSISTANT:')[-1].strip()
+        
+        # 応答が空の場合
+        if not assistant_response:
+            logger.warning("Empty response from llama.cpp")
+            return jsonify({
+                'message': "モデルからの応答が空でした。再度お試しください。",
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # 成功レスポンス
         return jsonify({
-            'message': "Ollamaからの応答がタイムアウトしました。再度お試しください。",
+            'message': assistant_response,
             'timestamp': datetime.now().isoformat()
         })
     
     except Exception as e:
-        logger.exception(f"Error communicating with Ollama: {str(e)}")
+        logger.exception(f"Error during chat processing: {str(e)}")
         return jsonify({
-            'message': f"Ollamaとの通信中にエラーが発生しました: {str(e)}",
+            'message': f"エラーが発生しました: {str(e)}",
             'timestamp': datetime.now().isoformat()
         })
 
@@ -308,83 +441,38 @@ def list_files():
     return jsonify({'files': files})
 
 
-@app.route('/api/ollama/models', methods=['GET'])
-def get_ollama_models():
-    """Ollamaから利用可能なモデルの一覧を取得するエンドポイント"""
-    try:
-        # Ollamaのモデル一覧APIを呼び出し
-        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags")
-        
-        if response.status_code == 200:
-            models = response.json().get('models', [])
-            # モデル情報を整形
-            formatted_models = [
-                {
-                    'name': model.get('name'),
-                    'size': model.get('size'),
-                    'modified_at': model.get('modified_at'),
-                    'details': model.get('details', {})
-                }
-                for model in models
-            ]
-            return jsonify({'models': formatted_models})
-        else:
-            logger.error(f"Failed to get models from Ollama: {response.status_code} - {response.text}")
-            return jsonify({'error': 'Failed to get models from Ollama', 'models': []}), 500
-    except Exception as e:
-        logger.exception(f"Error while fetching Ollama models: {str(e)}")
-        return jsonify({'error': str(e), 'models': []}), 500
-
-
-@app.route('/api/ollama/set-model', methods=['POST'])
-def set_ollama_model():
-    """使用するOllamaモデルを設定するエンドポイント"""
-    try:
-        data = request.json
-        model_name = data.get('model_name')
-        
-        if not model_name:
-            return jsonify({'error': 'Model name is required'}), 400
-        
-        # モデル名をグローバル変数に設定
-        global MODEL_PATH
-        MODEL_PATH = model_name
-        
-        logger.info(f"Set Ollama model to: {model_name}")
-        
-        return jsonify({
-            'status': 'success',
-            'model_name': model_name,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.exception(f"Error while setting Ollama model: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
 if __name__ == '__main__':
     # ディレクトリ存在確認
     if not os.path.exists('logs'):
         os.makedirs('logs')
+    
+    if not os.path.exists(MODELS_DIR):
+        os.makedirs(MODELS_DIR)
         
     logger.info(f"Starting Second Me backend on port {PORT}")
     logger.info(f"Log level: {log_level}")
+    logger.info(f"Models directory: {MODELS_DIR}")
     
-    if MODEL_PATH:
-        logger.info(f"Using Ollama model: {MODEL_PATH}")
+    # llama.cppの実行ファイルの存在確認
+    if not os.path.exists(LLAMACPP_MAIN):
+        logger.warning(f"llama.cpp executable not found at {LLAMACPP_MAIN}")
     else:
-        logger.warning("No model selected, chat functionality will be limited")
+        logger.info(f"llama.cpp executable found at {LLAMACPP_MAIN}")
     
-    # Ollamaが利用可能か確認
+    # モデルディレクトリの検索
     try:
-        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags")
-        if response.status_code == 200:
-            available_models = [model.get('name') for model in response.json().get('models', [])]
-            logger.info(f"Ollama available models: {', '.join(available_models)}")
+        model_files = [f for f in os.listdir(MODELS_DIR) if f.endswith(('.gguf', '.bin', '.pt', '.ggml'))]
+        if model_files:
+            logger.info(f"Found {len(model_files)} model files in {MODELS_DIR}")
+            
+            # 選択されたモデルが設定されていなければ、最初のモデルを選択
+            if not SELECTED_MODEL_PATH:
+                SELECTED_MODEL_PATH = os.path.join(MODELS_DIR, model_files[0])
+                logger.info(f"Auto-selected model: {SELECTED_MODEL_PATH}")
         else:
-            logger.warning(f"Ollama API returned status code: {response.status_code}")
+            logger.warning(f"No model files found in {MODELS_DIR}")
     except Exception as e:
-        logger.warning(f"Could not connect to Ollama API: {str(e)}")
+        logger.warning(f"Error scanning models directory: {str(e)}")
     
     # Flaskアプリケーション起動
     app.run(host='0.0.0.0', port=PORT, debug=False)

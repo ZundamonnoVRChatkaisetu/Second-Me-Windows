@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head';
 import Layout from '../../components/Layout';
-import { getTrainingData, deleteTrainingData } from '../../lib/api-client';
+import { fetchTrainingData } from '../../lib/api-client';
+import Link from 'next/link';
 
-// 型定義
+// トレーニングデータ型定義
 interface TrainingData {
   id: string;
   name: string;
@@ -16,6 +16,7 @@ interface TrainingData {
   preview?: string;
 }
 
+// トレーニングデータページコンポーネント
 const TrainingDataPage: React.FC = () => {
   const router = useRouter();
   const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
@@ -23,188 +24,211 @@ const TrainingDataPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // データ読み込み
-  const fetchTrainingData = async (category?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await getTrainingData(category);
-      setTrainingData(response.training_data || []);
-      setCategories(response.categories || []);
-      setLoading(false);
-    } catch (err) {
-      console.error('トレーニングデータの取得に失敗しました', err);
-      setError('トレーニングデータの取得に失敗しました。ネットワーク接続を確認してください。');
-      setLoading(false);
-    }
-  };
-
-  // 初期読み込み
+  // トレーニングデータの取得
   useEffect(() => {
-    fetchTrainingData();
-  }, []);
-
-  // カテゴリ選択時の処理
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const category = e.target.value;
-    setSelectedCategory(category);
-    fetchTrainingData(category || undefined);
-  };
-
-  // データ削除の処理
-  const handleDelete = async (data: TrainingData) => {
-    if (window.confirm(`「${data.name}」を削除してもよろしいですか？`)) {
+    const loadTrainingData = async () => {
       try {
-        await deleteTrainingData(data.id, data.path);
-        // 削除後、リストを更新
-        fetchTrainingData(selectedCategory || undefined);
+        setLoading(true);
+        const response = await fetchTrainingData(selectedCategory);
+        
+        if (response.training_data) {
+          setTrainingData(response.training_data);
+          setCategories(response.categories || []);
+        } else {
+          setError('トレーニングデータを取得できませんでした');
+        }
       } catch (err) {
-        console.error('削除に失敗しました', err);
-        setError('データの削除に失敗しました');
+        console.error('トレーニングデータの取得エラー:', err);
+        setError('トレーニングデータの読み込み中にエラーが発生しました');
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+
+    loadTrainingData();
+  }, [selectedCategory]);
+
+  // カテゴリ変更ハンドラ
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCategory(e.target.value);
   };
 
-  // 検索フィルタ
-  const filteredData = trainingData.filter((data) => {
-    if (!searchQuery) return true;
+  // 検索語変更ハンドラ
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // トレーニングデータのフィルタリング
+  const filteredData = trainingData.filter(item => {
+    if (!searchTerm) return true;
     
-    const query = searchQuery.toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
     return (
-      data.name.toLowerCase().includes(query) || 
-      data.category.toLowerCase().includes(query) ||
-      (data.preview && data.preview.toLowerCase().includes(query))
+      item.name.toLowerCase().includes(searchLower) ||
+      item.category.toLowerCase().includes(searchLower) ||
+      (item.preview && item.preview.toLowerCase().includes(searchLower))
     );
   });
 
   // ファイルサイズのフォーマット
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  const formatFileSize = (size: number) => {
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // 日付のフォーマット
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  // トレーニングデータの削除確認
+  const confirmDelete = (data: TrainingData) => {
+    if (window.confirm(`「${data.name}」を削除してもよろしいですか？`)) {
+      handleDelete(data);
+    }
+  };
+
+  // トレーニングデータの削除処理
+  const handleDelete = async (data: TrainingData) => {
+    try {
+      const response = await fetch(`/api/training/data/${data.id}?path=${encodeURIComponent(data.path)}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        // 成功したら一覧を更新
+        setTrainingData(prev => prev.filter(item => item.id !== data.id));
+        alert('トレーニングデータを削除しました');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || '削除中にエラーが発生しました');
+      }
+    } catch (err) {
+      console.error('削除エラー:', err);
+      setError('削除中にエラーが発生しました');
+    }
   };
 
   return (
-    <Layout>
-      <Head>
-        <title>トレーニングデータ管理 - Second Me</title>
-      </Head>
-      
-      <div className="container mx-auto px-4 py-6">
+    <Layout title="トレーニングデータ管理">
+      <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">トレーニングデータ管理</h1>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => router.push('/training/upload')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-            >
+          <div className="flex space-x-4">
+            <Link href="/training/upload" className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">
               アップロード
-            </button>
-            <button
-              onClick={() => router.push('/training/process')}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-            >
+            </Link>
+            <Link href="/training/process" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
               トレーニング実行
-            </button>
-            <button
-              onClick={() => router.push('/training/history')}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
-            >
-              トレーニング履歴
-            </button>
+            </Link>
+            <Link href="/training/history" className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded">
+              履歴
+            </Link>
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-            <p>{error}</p>
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="検索..."
+              className="w-full p-2 border border-gray-300 rounded"
+              value={searchTerm}
+              onChange={handleSearchChange}
+            />
           </div>
-        )}
-
-        <div className="flex flex-col md:flex-row justify-between mb-4 gap-4">
-          <div className="w-full md:w-1/3">
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-              カテゴリでフィルタ
-            </label>
+          <div className="w-full md:w-64">
             <select
-              id="category"
+              className="w-full p-2 border border-gray-300 rounded"
               value={selectedCategory}
               onChange={handleCategoryChange}
-              className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2"
             >
               <option value="">すべてのカテゴリ</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
+              {categories.map(category => (
+                <option key={category} value={category}>
+                  {category}
                 </option>
               ))}
             </select>
           </div>
-          
-          <div className="w-full md:w-2/3">
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
-              検索
-            </label>
-            <input
-              type="text"
-              id="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ファイル名やコンテンツで検索..."
-              className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2"
-            />
-          </div>
         </div>
 
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
+            <p className="mt-4">データを読み込んでいます...</p>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="bg-gray-100 p-10 text-center rounded-md">
-            <p className="text-gray-500">
-              {searchQuery
-                ? '検索条件に一致するトレーニングデータがありません'
-                : 'トレーニングデータがありません。「アップロード」ボタンからデータを追加してください。'}
+          <div className="bg-gray-100 p-8 rounded-lg text-center">
+            <p className="text-gray-600">
+              {searchTerm 
+                ? '検索条件に一致するトレーニングデータが見つかりません' 
+                : 'トレーニングデータがありません'
+              }
             </p>
+            <Link href="/training/upload" className="mt-4 inline-block bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+              トレーニングデータをアップロード
+            </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full bg-white border border-gray-200">
               <thead>
-                <tr>
-                  <th className="px-4 py-2 border-b text-left">ファイル名</th>
-                  <th className="px-4 py-2 border-b text-left">カテゴリ</th>
-                  <th className="px-4 py-2 border-b text-left">サイズ</th>
-                  <th className="px-4 py-2 border-b text-left">更新日時</th>
-                  <th className="px-4 py-2 border-b text-left">プレビュー</th>
-                  <th className="px-4 py-2 border-b text-left">アクション</th>
+                <tr className="bg-gray-100">
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">ファイル名</th>
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">カテゴリ</th>
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">サイズ</th>
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">更新日時</th>
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">プレビュー</th>
+                  <th className="py-2 px-4 border-b border-gray-200 text-left">アクション</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.map((data) => (
                   <tr key={data.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 border-b">{data.name}</td>
-                    <td className="px-4 py-2 border-b">{data.category}</td>
-                    <td className="px-4 py-2 border-b">{formatFileSize(data.size)}</td>
-                    <td className="px-4 py-2 border-b">
-                      {new Date(data.modified_at).toLocaleString()}
+                    <td className="py-2 px-4 border-b border-gray-200">
+                      <span className="font-medium">{data.name}</span>
                     </td>
-                    <td className="px-4 py-2 border-b">
-                      <div className="max-w-xs truncate">{data.preview || '-'}</div>
+                    <td className="py-2 px-4 border-b border-gray-200">
+                      <span className="inline-block bg-blue-100 text-blue-800 py-1 px-2 rounded-full text-xs">
+                        {data.category}
+                      </span>
                     </td>
-                    <td className="px-4 py-2 border-b">
+                    <td className="py-2 px-4 border-b border-gray-200">
+                      {formatFileSize(data.size)}
+                    </td>
+                    <td className="py-2 px-4 border-b border-gray-200">
+                      {formatDate(data.modified_at)}
+                    </td>
+                    <td className="py-2 px-4 border-b border-gray-200">
+                      <div className="text-xs text-gray-600 truncate max-w-xs">
+                        {data.preview || 'プレビューなし'}
+                      </div>
+                    </td>
+                    <td className="py-2 px-4 border-b border-gray-200">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => router.push(`/training/view?id=${data.id}&path=${encodeURIComponent(data.path)}`)}
+                          onClick={() => router.push(`/training/data/${data.id}?path=${encodeURIComponent(data.path)}`)}
                           className="text-blue-600 hover:text-blue-800"
                         >
                           表示
                         </button>
                         <button
-                          onClick={() => handleDelete(data)}
+                          onClick={() => confirmDelete(data)}
                           className="text-red-600 hover:text-red-800"
                         >
                           削除
@@ -217,14 +241,6 @@ const TrainingDataPage: React.FC = () => {
             </table>
           </div>
         )}
-        
-        <div className="mt-6">
-          <p className="text-sm text-gray-500">
-            トレーニングデータ数: {filteredData.length} 件
-            {searchQuery && ` (検索結果)`}
-            {selectedCategory && ` (カテゴリ: ${selectedCategory})`}
-          </p>
-        </div>
       </div>
     </Layout>
   );

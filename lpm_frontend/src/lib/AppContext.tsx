@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import axios from 'axios';
 import { checkBackendHealth } from './api-client';
 
+// 環境変数からバックエンドのURLを取得
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8002';
+
 // プロファイルの型定義
 export interface Profile {
   id: string;
@@ -78,6 +81,8 @@ interface AppContextType extends AppState {
   setLoading: (isLoading: boolean, message?: string) => void;
   // エラー状態を設定
   setError: (error: string | null) => void;
+  // バックエンド接続を再試行
+  retryBackendConnection: () => Promise<boolean>;
 }
 
 // デフォルト値の設定
@@ -131,25 +136,49 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [state, setState] = useState<AppState>(defaultState);
 
   // バックエンドの健全性をチェック
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const isConnected = await checkBackendHealth();
-        setState(prev => ({ ...prev, backendConnected: isConnected }));
-        
-        // バックエンド接続が確立されたらプロファイル情報を取得
-        if (isConnected) {
-          fetchProfiles();
-        }
-      } catch (error) {
-        setState(prev => ({ 
-          ...prev, 
-          backendConnected: false,
-          error: 'バックエンドに接続できません。'
-        }));
+  const checkConnection = async () => {
+    try {
+      console.log('Checking backend connection at:', BACKEND_URL);
+      const isConnected = await checkBackendHealth();
+      setState(prev => ({ ...prev, backendConnected: isConnected }));
+      
+      // バックエンド接続が確立されたらプロファイル情報を取得
+      if (isConnected) {
+        await fetchProfiles();
+        return true;
       }
-    };
+      return false;
+    } catch (error) {
+      console.error('Backend connection check failed:', error);
+      setState(prev => ({ 
+        ...prev, 
+        backendConnected: false,
+        error: 'バックエンドに接続できません。サーバーが実行中か確認してください。'
+      }));
+      return false;
+    }
+  };
 
+  // 接続リトライ関数
+  const retryBackendConnection = async (): Promise<boolean> => {
+    setState(prev => ({
+      ...prev,
+      isLoading: true,
+      loadingMessage: 'バックエンド接続を再試行しています...'
+    }));
+    
+    const result = await checkConnection();
+    
+    setState(prev => ({
+      ...prev,
+      isLoading: false,
+      loadingMessage: ''
+    }));
+    
+    return result;
+  };
+
+  useEffect(() => {
     // 初回チェック
     checkConnection();
 
@@ -208,7 +237,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         }
       }));
 
-      const response = await axios.get('/api/profiles');
+      console.log('Fetching profiles from:', `${BACKEND_URL}/api/profiles`);
+      const response = await axios.get(`${BACKEND_URL}/api/profiles`);
+      console.log('Profiles response:', response);
+
       const profiles = response.data.profiles || [];
       const activeProfile = profiles.find((p: Profile) => p.active) || null;
 
@@ -225,12 +257,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       return profiles;
     } catch (error: any) {
       console.error('Failed to fetch profiles:', error);
+      const errorMessage = error.response?.data?.error || 
+                          error.message || 
+                          'プロファイル情報の取得に失敗しました';
+      
       setState(prev => ({
         ...prev,
         profiles: {
           ...prev.profiles,
           loading: false,
-          error: 'プロファイル情報の取得に失敗しました'
+          error: errorMessage
         }
       }));
       return [];
@@ -242,10 +278,20 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     try {
       setLoading(true, 'プロファイルをアクティブにしています...');
       
+      console.log('Activating profile:', profileId);
+      console.log('Request URL:', `${BACKEND_URL}/api/profiles/activate`);
+      
       // プロファイルをアクティブにするAPIを呼び出し
-      await axios.post('/api/profiles/activate', {
+      const response = await axios.post(`${BACKEND_URL}/api/profiles/activate`, {
         profile_id: profileId
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
+      
+      console.log('Profile activation response:', response);
       
       // プロファイル一覧を再取得して最新情報に更新
       await fetchProfiles();
@@ -254,8 +300,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       return true;
     } catch (error: any) {
       console.error('Failed to activate profile:', error);
-      setError(`プロファイルのアクティブ化に失敗しました: ${error.response?.data?.error || error.message}`);
+      const errorDetails = error.response?.data?.error || error.message;
+      setError(`プロファイルのアクティブ化に失敗しました: ${errorDetails}`);
       setLoading(false);
+      
+      // エラーの詳細情報をコンソールに出力
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers
+      });
+      
       return false;
     }
   };
@@ -385,7 +441,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     resetTraining,
     updateSettings,
     setLoading,
-    setError
+    setError,
+    retryBackendConnection
   };
 
   return (

@@ -17,11 +17,14 @@ from config import logger, PROFILES_DIR, ACTIVE_PROFILE, SELECTED_MODEL_PATH, WO
 def register_routes(app: Flask):
     """プロファイル関連のルートを登録"""
     
-    @app.route('/api/profiles', methods=['GET'])
+    @app.route('/api/profiles', methods=['GET', 'OPTIONS'])
     def get_profiles():
         """
         利用可能なプロファイルの一覧を取得するエンドポイント
         """
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             profiles = []
             
@@ -54,24 +57,29 @@ def register_routes(app: Flask):
                         except Exception as e:
                             logger.warning(f"Failed to load profile {item}: {str(e)}")
             
-            return jsonify({
+            response = jsonify({
                 'profiles': profiles,
                 'active_profile': ACTIVE_PROFILE,
                 'profiles_dir': PROFILES_DIR
             })
+            return _corsify_response(response)
             
         except Exception as e:
             logger.exception(f"Error getting profiles: {str(e)}")
-            return jsonify({
+            response = jsonify({
                 'error': f"プロファイル一覧の取得中にエラーが発生しました: {str(e)}"
-            }), 500
+            })
+            return _corsify_response(response, 500)
 
 
-    @app.route('/api/profiles/create', methods=['POST'])
+    @app.route('/api/profiles/create', methods=['POST', 'OPTIONS'])
     def create_profile():
         """
         新しいプロファイルを作成するエンドポイント
         """
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             data = request.json
             profile_name = data.get('name')
@@ -79,9 +87,10 @@ def register_routes(app: Flask):
             model_path = data.get('model_path', SELECTED_MODEL_PATH)
             
             if not profile_name:
-                return jsonify({
+                response = jsonify({
                     'error': 'プロファイル名が指定されていません'
-                }), 400
+                })
+                return _corsify_response(response, 400)
             
             # プロファイルIDの生成（名前をベースに安全なファイル名に変換）
             profile_id = secure_filename(profile_name.lower().replace(' ', '_'))
@@ -89,9 +98,10 @@ def register_routes(app: Flask):
             # 既存のプロファイルとの重複チェック
             profile_dir = os.path.join(PROFILES_DIR, profile_id)
             if os.path.exists(profile_dir):
-                return jsonify({
+                response = jsonify({
                     'error': f'プロファイル "{profile_name}" は既に存在します'
-                }), 409
+                })
+                return _corsify_response(response, 409)
             
             # プロファイルディレクトリの作成
             os.makedirs(profile_dir, exist_ok=True)
@@ -118,42 +128,49 @@ def register_routes(app: Flask):
             
             logger.info(f"Created new profile {profile_id} and set as active")
             
-            return jsonify({
+            response = jsonify({
                 'status': 'success',
                 'message': f'プロファイル "{profile_name}" を作成しました',
                 'profile_id': profile_id
             })
+            return _corsify_response(response)
             
         except Exception as e:
             logger.exception(f"Error creating profile: {str(e)}")
-            return jsonify({
+            response = jsonify({
                 'error': f"プロファイル作成中にエラーが発生しました: {str(e)}"
-            }), 500
+            })
+            return _corsify_response(response, 500)
 
 
-    @app.route('/api/profiles/select', methods=['POST', 'PUT'])
+    @app.route('/api/profiles/select', methods=['POST', 'PUT', 'OPTIONS'])
     def select_profile():
         """
         プロファイルを選択するエンドポイント
         POSTとPUTの両方のHTTPメソッドをサポート（フロントエンド互換性のため）
         """
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             data = request.json
             profile_id = data.get('profile_id')
             
             if not profile_id:
-                return jsonify({
+                response = jsonify({
                     'error': 'プロファイルIDが指定されていません'
-                }), 400
+                })
+                return _corsify_response(response, 400)
             
             # プロファイルの存在確認
             profile_dir = os.path.join(PROFILES_DIR, profile_id)
             config_path = os.path.join(profile_dir, 'config.json')
             
             if not os.path.exists(profile_dir) or not os.path.exists(config_path):
-                return jsonify({
+                response = jsonify({
                     'error': f'プロファイル "{profile_id}" が見つかりません'
-                }), 404
+                })
+                return _corsify_response(response, 404)
             
             # グローバル変数を更新
             import config as app_config
@@ -175,7 +192,7 @@ def register_routes(app: Flask):
                 logger.error(f"Failed to load profile config: {str(e)}")
             
             # フロントエンドの期待する応答形式
-            return jsonify({
+            response = jsonify({
                 'id': profile_id,
                 'name': profile_config.get('name', profile_id),
                 'description': profile_config.get('description', ''),
@@ -185,29 +202,36 @@ def register_routes(app: Flask):
                 'training_count': 0,
                 'memories_count': 0
             })
+            return _corsify_response(response)
             
         except Exception as e:
             logger.exception(f"Error selecting profile: {str(e)}")
-            return jsonify({
+            response = jsonify({
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
-            }), 500
+            })
+            return _corsify_response(response, 500)
 
     # フロントエンド互換性のために /activate エンドポイントを追加
-    @app.route('/api/profiles/activate', methods=['POST', 'PUT'])
+    @app.route('/api/profiles/activate', methods=['POST', 'PUT', 'OPTIONS'])
     def activate_profile():
         """
         プロファイルをアクティブ化するエンドポイント
         古いフロントエンドコードとの互換性のために提供
         """
+        # OPTIONS リクエストの処理
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             # リクエストのログ
             logger.info(f"activate_profile request: method={request.method}, data={request.json}")
             
             data = request.json
             if not data:
-                return jsonify({
+                response = jsonify({
                     'error': 'リクエストデータが空です'
-                }), 400
+                })
+                return _corsify_response(response, 400)
             
             # 異なる形式からprofile_idを抽出
             profile_id = None
@@ -217,18 +241,20 @@ def register_routes(app: Flask):
                 profile_id = data['id']
             
             if not profile_id:
-                return jsonify({
+                response = jsonify({
                     'error': 'プロファイルIDが指定されていません'
-                }), 400
+                })
+                return _corsify_response(response, 400)
             
             # プロファイルの存在確認
             profile_dir = os.path.join(PROFILES_DIR, profile_id)
             config_path = os.path.join(profile_dir, 'config.json')
             
             if not os.path.exists(profile_dir) or not os.path.exists(config_path):
-                return jsonify({
+                response = jsonify({
                     'error': f'プロファイル "{profile_id}" が見つかりません'
-                }), 404
+                })
+                return _corsify_response(response, 404)
             
             # グローバル変数を更新
             import config as app_config
@@ -248,7 +274,7 @@ def register_routes(app: Flask):
             except Exception as e:
                 logger.error(f"Failed to load profile config: {str(e)}")
             
-            # CORSヘッダーを明示的に追加
+            # フロントエンドの期待する応答形式
             response_data = {
                 'id': profile_id,
                 'name': profile_config.get('name', profile_id),
@@ -260,40 +286,34 @@ def register_routes(app: Flask):
                 'memories_count': 0
             }
             
-            # JSON文字列に変換してCORSヘッダーを追加
-            response = make_response(json.dumps(response_data))
-            response.headers.add('Content-Type', 'application/json')
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-            
-            return response
+            return _corsify_response(jsonify(response_data))
             
         except Exception as e:
             logger.exception(f"Error activating profile: {str(e)}")
-            error_response = make_response(json.dumps({
+            response = jsonify({
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
-            }))
-            error_response.headers.add('Content-Type', 'application/json')
-            error_response.headers.add('Access-Control-Allow-Origin', '*')
-            error_response.status_code = 500
-            return error_response
+            })
+            return _corsify_response(response, 500)
 
 
-    @app.route('/api/profiles/<profile_id>', methods=['PUT'])
+    @app.route('/api/profiles/<profile_id>', methods=['PUT', 'OPTIONS'])
     def update_profile(profile_id):
         """
         プロファイルを更新するエンドポイント
         """
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             # プロファイルの存在確認
             profile_dir = os.path.join(PROFILES_DIR, profile_id)
             config_path = os.path.join(profile_dir, 'config.json')
             
             if not os.path.exists(profile_dir) or not os.path.exists(config_path):
-                return jsonify({
+                response = jsonify({
                     'error': f'プロファイル "{profile_id}" が見つかりません'
-                }), 404
+                })
+                return _corsify_response(response, 404)
             
             # 現在の設定を読み込む
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -312,38 +332,45 @@ def register_routes(app: Flask):
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
             
-            return jsonify({
+            response = jsonify({
                 'status': 'success',
                 'message': f'プロファイル "{profile_id}" を更新しました',
                 'profile': config
             })
+            return _corsify_response(response)
             
         except Exception as e:
             logger.exception(f"Error updating profile: {str(e)}")
-            return jsonify({
+            response = jsonify({
                 'error': f"プロファイル更新中にエラーが発生しました: {str(e)}"
-            }), 500
+            })
+            return _corsify_response(response, 500)
 
 
-    @app.route('/api/profiles/<profile_id>', methods=['DELETE'])
+    @app.route('/api/profiles/<profile_id>', methods=['DELETE', 'OPTIONS'])
     def delete_profile(profile_id):
         """
         プロファイルを削除するエンドポイント
         """
+        if request.method == 'OPTIONS':
+            return _create_cors_preflight_response()
+            
         try:
             # プロファイルの存在確認
             profile_dir = os.path.join(PROFILES_DIR, profile_id)
             
             if not os.path.exists(profile_dir):
-                return jsonify({
+                response = jsonify({
                     'error': f'プロファイル "{profile_id}" が見つかりません'
-                }), 404
+                })
+                return _corsify_response(response, 404)
             
             # アクティブなプロファイルを削除しようとしている場合
             if profile_id == ACTIVE_PROFILE:
-                return jsonify({
+                response = jsonify({
                     'error': 'アクティブなプロファイルは削除できません。先に別のプロファイルを選択してください。'
-                }), 400
+                })
+                return _corsify_response(response, 400)
             
             # プロファイルディレクトリを削除
             shutil.rmtree(profile_dir)
@@ -353,13 +380,33 @@ def register_routes(app: Flask):
             if os.path.exists(workspace_dir):
                 shutil.rmtree(workspace_dir)
             
-            return jsonify({
+            response = jsonify({
                 'status': 'success',
                 'message': f'プロファイル "{profile_id}" を削除しました'
             })
+            return _corsify_response(response)
             
         except Exception as e:
             logger.exception(f"Error deleting profile: {str(e)}")
-            return jsonify({
+            response = jsonify({
                 'error': f"プロファイル削除中にエラーが発生しました: {str(e)}"
-            }), 500
+            })
+            return _corsify_response(response, 500)
+
+# CORS対応のヘルパー関数
+def _corsify_response(response, status_code=200):
+    """レスポンスにCORSヘッダーを追加する"""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    if status_code != 200:
+        response.status_code = status_code
+    return response
+
+def _create_cors_preflight_response():
+    """OPTIONSリクエストに対するCORSプリフライトレスポンスを作成する"""
+    response = make_response()
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response

@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: Script version
-set VERSION=1.0.0
+set VERSION=1.0.1
 
 :: Default environment variables
 set VENV_NAME=second-me-venv
@@ -100,7 +100,7 @@ if "%BACKEND_ONLY%"=="false" (
     
     :: Check if node_modules exists
     if not exist node_modules (
-        call :log_info "Installing frontend dependencies..."
+        call :log_info "Frontend dependencies not found. Installing now..."
         npm install
         if %errorlevel% neq 0 (
             call :log_error "Failed to install frontend dependencies"
@@ -218,10 +218,21 @@ if not exist %VENV_NAME% (
     exit /b 1
 )
 
-:: Check if frontend dependencies are installed
-if not exist lpm_frontend\node_modules if "%BACKEND_ONLY%" neq "true" (
-    call :log_error "Frontend dependencies not installed. Please run 'scripts\setup.bat' first."
+:: Check if llama.cpp exists and has been built
+if not exist llama.cpp (
+    call :log_error "llama.cpp directory not found. Please run 'scripts\setup.bat' first."
     exit /b 1
+)
+
+if not exist llama.cpp\build\bin\Release\llama-server.exe (
+    call :log_error "llama-server executable not found. Please run 'scripts\setup.bat' first."
+    exit /b 1
+)
+
+:: Modified check - No longer exiting with error if node_modules is missing
+:: Instead, we'll install them later if they're missing
+if not exist lpm_frontend\node_modules if "%BACKEND_ONLY%"=="false" (
+    call :log_warning "Frontend dependencies not installed, will attempt to install during startup."
 )
 
 call :log_success "Setup check passed"

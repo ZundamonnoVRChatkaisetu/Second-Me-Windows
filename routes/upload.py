@@ -338,13 +338,17 @@ def register_routes(app: Flask):
                         except Exception as e:
                             logger.error(f"Failed to load memories file: {str(e)}")
                     
+                    # インポートした項目のカウント
+                    imported_count = 0
+                    
                     # インポートしたデータの処理
                     if isinstance(imported_data, list):
                         # リスト形式の場合はそのまま追加
                         for item in imported_data:
                             if 'content' in item:
+                                next_id = len(memories) + 1
                                 new_memory = {
-                                    'id': str(len(memories) + 1),
+                                    'id': str(next_id),
                                     'content': item['content'],
                                     'type': item.get('type', 'imported'),
                                     'tags': item.get('tags', ['imported']),
@@ -352,7 +356,7 @@ def register_routes(app: Flask):
                                     'strength': item.get('strength', 1.0)
                                 }
                                 memories.append(new_memory)
-                                len(memories) += 1
+                                imported_count += 1
                     else:
                         # 単一オブジェクトの場合
                         if 'content' in imported_data:
@@ -365,6 +369,7 @@ def register_routes(app: Flask):
                                 'strength': imported_data.get('strength', 1.0)
                             }
                             memories.append(new_memory)
+                            imported_count = 1
                     
                     # メモリを保存
                     with open(memory_file, 'w', encoding='utf-8') as f:
@@ -373,7 +378,7 @@ def register_routes(app: Flask):
                     return jsonify({
                         'status': 'success',
                         'message': f'ファイル "{os.path.basename(file_path)}" をメモリにインポートしました',
-                        'count': len(imported_data) if isinstance(imported_data, list) else 1
+                        'count': imported_count
                     })
                 
                 else:

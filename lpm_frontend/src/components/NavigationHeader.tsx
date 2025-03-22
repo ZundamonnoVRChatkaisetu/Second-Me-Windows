@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Button } from './ui/Button';
@@ -23,6 +23,10 @@ const NavigationHeader: React.FC = () => {
   
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMainMenu, setShowMainMenu] = useState(false);
+  
+  // プロファイルメニューの参照を保持
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   // プロファイル一覧を取得
   useEffect(() => {
@@ -34,6 +38,28 @@ const NavigationHeader: React.FC = () => {
     
     loadProfiles();
   }, [fetchProfiles, profiles.all.length, profiles.loading]);
+
+  // メニュー外のクリックを検出して閉じる処理
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        profileMenuRef.current && 
+        !profileMenuRef.current.contains(event.target as Node) &&
+        profileButtonRef.current && 
+        !profileButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    // クリックイベントリスナーを追加
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // クリーンアップ
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // プロファイルメニューの表示・非表示を切り替え
   const toggleProfileMenu = () => {
@@ -126,27 +152,32 @@ const NavigationHeader: React.FC = () => {
           {/* アクティブなプロファイル */}
           <div className="relative">
             <button 
+              ref={profileButtonRef}
               onClick={toggleProfileMenu}
               className="flex items-center text-blue-100 hover:text-white transition-colors"
             >
               <span className="mr-1">👤</span>
               <span className="hidden sm:inline">{profiles.active ? profiles.active.name : '選択なし'}</span>
-              <span className="ml-1">▼</span>
+              <span className="ml-1">{showProfileMenu ? '▲' : '▼'}</span>
             </button>
             
-            {/* プロファイルメニュー（クリック時に表示） */}
+            {/* プロファイルメニュー（クリック時に表示） - 改善版 */}
             {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg z-10 overflow-hidden">
+              <div 
+                ref={profileMenuRef}
+                className="fixed right-4 mt-2 w-64 bg-white rounded-md shadow-lg z-50 overflow-hidden"
+                style={{ maxHeight: 'calc(100vh - 100px)' }}
+              >
                 <div className="py-1">
                   {/* プロファイル切り替えセクション */}
                   {profiles.all.length > 0 && (
-                    <div className="px-4 py-2 bg-gray-100">
+                    <div className="px-4 py-2 bg-gray-100 sticky top-0">
                       <h3 className="text-sm font-medium text-gray-700">プロファイル切り替え</h3>
                     </div>
                   )}
                   
                   {/* プロファイル一覧 */}
-                  <div className="max-h-60 overflow-y-auto">
+                  <div className="overflow-y-auto" style={{ maxHeight: '40vh' }}>
                     {profiles.all.map(profile => (
                       <button
                         key={profile.id}
@@ -181,28 +212,30 @@ const NavigationHeader: React.FC = () => {
                   <hr className="my-1" />
                   
                   {/* プロファイル管理リンク */}
-                  <Link href="/profiles" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    プロファイル管理
-                  </Link>
-                  <Link href="/profiles/create" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    新規プロファイル作成
-                  </Link>
-                  <Link href="/profiles/wizard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    ウィザード形式で作成
-                  </Link>
-                  
-                  <hr className="my-1" />
-                  
-                  {/* 機能リンク */}
-                  <Link href="/memory" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    メモリー管理
-                  </Link>
-                  <Link href="/workspace" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    WorkSpace
-                  </Link>
-                  <Link href="/training" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    トレーニング
-                  </Link>
+                  <div className="sticky bottom-0 bg-white">
+                    <Link href="/profiles" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      プロファイル管理
+                    </Link>
+                    <Link href="/profiles/create" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      新規プロファイル作成
+                    </Link>
+                    <Link href="/profiles/wizard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      ウィザード形式で作成
+                    </Link>
+                    
+                    <hr className="my-1" />
+                    
+                    {/* 機能リンク */}
+                    <Link href="/memory" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      メモリー管理
+                    </Link>
+                    <Link href="/workspace" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      WorkSpace
+                    </Link>
+                    <Link href="/training" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      トレーニング
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}
@@ -243,7 +276,7 @@ const NavigationHeader: React.FC = () => {
       
       {/* モバイルメニュー（ハンバーガーメニュークリック時に表示） */}
       {showMainMenu && (
-        <div className="md:hidden bg-white shadow-lg">
+        <div className="md:hidden bg-white shadow-lg z-40">
           <nav className="px-4 py-2">
             <Link href="/chat" className="block py-2 text-gray-700">
               チャット
@@ -287,9 +320,10 @@ const NavigationHeader: React.FC = () => {
                 <span>{showProfileMenu ? '▲' : '▼'}</span>
               </button>
               
-              {/* プロファイル一覧（モバイル用） */}
+              {/* プロファイル一覧（モバイル用） - 改善版 */}
               {showProfileMenu && (
-                <div className="mt-1 mb-2 bg-gray-50 rounded border border-gray-200 overflow-y-auto max-h-60">
+                <div className="mt-1 mb-2 bg-gray-50 rounded border border-gray-200 overflow-y-auto z-50"
+                     style={{ maxHeight: '40vh' }}>
                   {profiles.all.map(profile => (
                     <button
                       key={profile.id}

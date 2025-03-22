@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: Script version
-set VERSION=1.0.1
+set VERSION=1.0.2
 
 :: Default environment variables
 set VENV_NAME=second-me-venv
@@ -31,9 +31,13 @@ call :log_section "STARTING SERVICES"
 
 :: Parse command line arguments
 set BACKEND_ONLY=false
+set HEALTH_CHECK_TIMEOUT=120
+set SKIP_HEALTH_CHECK=false
+
 :parse_args
 if "%~1"=="" goto :end_parse_args
 if "%~1"=="--backend-only" set BACKEND_ONLY=true
+if "%~1"=="--skip-health-check" set SKIP_HEALTH_CHECK=true
 shift
 goto :parse_args
 :end_parse_args
@@ -80,13 +84,28 @@ for /f "tokens=2" %%a in ('tasklist /fi "windowtitle eq Second-Me Backend" /fo l
 call :log_info "Backend service started in background"
 
 :: Wait for backend to be healthy
-call :log_info "Waiting for backend service to be ready..."
-call :check_backend_health 60
-if %errorlevel% neq 0 (
-    call :log_error "Backend service failed to start within 60 seconds"
-    exit /b 1
+if "%SKIP_HEALTH_CHECK%"=="false" (
+    call :log_info "Waiting for backend service to be ready (timeout: %HEALTH_CHECK_TIMEOUT%s)..."
+    call :check_backend_health %HEALTH_CHECK_TIMEOUT%
+    if %errorlevel% neq 0 (
+        call :log_warning "Backend health check timed out after %HEALTH_CHECK_TIMEOUT% seconds."
+        call :log_warning "The service might still be starting up. You can try accessing it manually."
+        call :log_warning "Backend URL: http://localhost:%LOCAL_APP_PORT%/health"
+        
+        choice /C YN /M "Do you want to continue anyway?"
+        if !errorlevel! equ 2 (
+            call :log_error "Stopping services as requested."
+            call scripts\stop.bat
+            exit /b 1
+        )
+    ) else (
+        call :log_success "Backend service is ready"
+    )
+) else (
+    call :log_info "Skipping backend health check as requested."
+    call :log_info "Waiting 5 seconds for the backend to start..."
+    timeout /t 5 /nobreak > nul
 )
-call :log_success "Backend service is ready"
 
 :: Start frontend service if not backend-only mode
 if "%BACKEND_ONLY%"=="false" (
@@ -127,13 +146,21 @@ if "%BACKEND_ONLY%"=="false" (
     
     :: Wait for frontend to be ready
     call :log_info "Waiting for frontend service to be ready..."
-    call :check_frontend_ready 60
+    call :check_frontend_ready 120
     if %errorlevel% neq 0 (
-        call :log_error "Frontend service failed to start within 60 seconds"
-        cd ..
-        exit /b 1
+        call :log_warning "Frontend service may not be fully ready yet."
+        call :log_warning "Check logs\frontend.log for any issues."
+        
+        choice /C YN /M "Do you want to continue anyway?"
+        if !errorlevel! equ 2 (
+            call :log_error "Stopping services as requested."
+            call scripts\stop.bat
+            cd ..
+            exit /b 1
+        )
+    ) else (
+        call :log_success "Frontend service is ready"
     )
-    call :log_success "Frontend service is ready"
     cd ..
 )
 

@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: Script version
-set VERSION=1.0.1
+set VERSION=1.0.2
 
 :: Default environment variables
 set VENV_NAME=second-me-venv
@@ -135,35 +135,35 @@ if not exist llama.cpp (
     call :log_info "Setting up llama.cpp..."
     
     :: Check for llama.cpp.zip or llama.cpp-master.zip
-    set "LLAMA_ZIP="
-    
     if exist dependencies\llama.cpp.zip (
-        set "LLAMA_ZIP=dependencies\llama.cpp.zip"
         call :log_info "Using local llama.cpp archive..."
+        
+        :: Use a temporary script to execute PowerShell commands safely
+        echo Expand-Archive -Path "dependencies\llama.cpp.zip" -DestinationPath "." > "%TEMP%\extract_llamacpp.ps1"
+        powershell -ExecutionPolicy Bypass -File "%TEMP%\extract_llamacpp.ps1"
+        del "%TEMP%\extract_llamacpp.ps1"
+        
     ) else if exist dependencies\llama.cpp-master.zip (
-        set "LLAMA_ZIP=dependencies\llama.cpp-master.zip"
         call :log_info "Using local llama.cpp-master archive..."
+        
+        :: Use a temporary script to execute PowerShell commands safely
+        echo Expand-Archive -Path "dependencies\llama.cpp-master.zip" -DestinationPath "." > "%TEMP%\extract_llamacpp.ps1"
+        powershell -ExecutionPolicy Bypass -File "%TEMP%\extract_llamacpp.ps1"
+        del "%TEMP%\extract_llamacpp.ps1"
+        
+        :: Rename directory if it's llama.cpp-master
+        if exist llama.cpp-master (
+            call :log_info "Renaming directory from llama.cpp-master to llama.cpp..."
+            rename llama.cpp-master llama.cpp
+            if %errorlevel% neq 0 (
+                call :log_error "Failed to rename directory. Please check permissions."
+                exit /b 1
+            )
+        )
     ) else (
         call :log_error "Local llama.cpp archive not found at: dependencies\llama.cpp.zip or dependencies\llama.cpp-master.zip"
         call :log_error "Please ensure one of these ZIP files exists in the dependencies directory."
         exit /b 1
-    )
-    
-    :: Extract the archive
-    powershell -Command "Expand-Archive -Path '%LLAMA_ZIP%' -DestinationPath '.'"
-    if %errorlevel% neq 0 (
-        call :log_error "Failed to extract local llama.cpp archive."
-        exit /b 1
-    )
-    
-    :: Rename directory if it's llama.cpp-master
-    if exist llama.cpp-master (
-        call :log_info "Renaming directory from llama.cpp-master to llama.cpp..."
-        rename llama.cpp-master llama.cpp
-        if %errorlevel% neq 0 (
-            call :log_error "Failed to rename directory. Please check permissions."
-            exit /b 1
-        )
     )
 ) else (
     call :log_info "Found existing llama.cpp directory."
@@ -177,7 +177,10 @@ if exist llama.cpp\build\bin\Release\llama-server.exe (
 )
 
 :: Enter llama.cpp directory and build
-cd llama.cpp
+cd llama.cpp || (
+    call :log_error "Failed to enter llama.cpp directory. Directory may not exist."
+    exit /b 1
+)
 
 :: Clean previous build
 if exist build (
@@ -188,14 +191,18 @@ if exist build (
 :: Create and enter build directory
 call :log_info "Creating build directory..."
 mkdir build
-cd build
+cd build || (
+    call :log_error "Failed to enter build directory."
+    cd ..
+    exit /b 1
+)
 
 :: Configure CMake
 call :log_info "Configuring CMake..."
 cmake .. -DBUILD_SHARED_LIBS=OFF
 if %errorlevel% neq 0 (
     call :log_error "CMake configuration failed."
-    cd ..\..\
+    cd ..\..
     exit /b 1
 )
 
@@ -204,7 +211,7 @@ call :log_info "Building project..."
 cmake --build . --config Release
 if %errorlevel% neq 0 (
     call :log_error "Build failed."
-    cd ..\..\
+    cd ..\..
     exit /b 1
 )
 
@@ -212,12 +219,12 @@ if %errorlevel% neq 0 (
 if not exist bin\Release\llama-server.exe (
     call :log_error "Build failed: llama-server executable not found."
     call :log_error "Expected at: bin\Release\llama-server.exe"
-    cd ..\..\
+    cd ..\..
     exit /b 1
 )
 
 call :log_success "Found llama-server at: bin\Release\llama-server.exe"
-cd ..\..\
+cd ..\..
 call :log_section "LLAMA.CPP BUILD COMPLETE"
 
 :build_frontend

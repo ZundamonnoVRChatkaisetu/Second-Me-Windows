@@ -1,5 +1,133 @@
 # Second-Me-Windows 進捗状況
 
+## 2025年3月23日の作業（更新4）
+
+### 新しいディレクトリ構造の完全実装
+1. **実装状況**
+   - 前回のアップデートで定義した新しいディレクトリ構造をすべて実装完了
+   - 6つの主要ルーティングモジュールを追加実装
+
+### 新たに実装したモジュール
+1. **routes/models.py**
+   - モデルの一覧取得: `/api/models` (GET)
+   - モデル選択: `/api/models/select` (POST)
+   - モデル情報取得: `/api/models/info/<model_name>` (GET)
+
+2. **routes/profiles.py**
+   - プロファイル一覧取得: `/api/profiles` (GET)
+   - プロファイル作成: `/api/profiles/create` (POST)
+   - プロファイル選択: `/api/profiles/select` (POST)
+   - プロファイル更新: `/api/profiles/<profile_id>` (PUT)
+   - プロファイル削除: `/api/profiles/<profile_id>` (DELETE)
+
+3. **routes/memory.py**
+   - メモリ一覧取得: `/api/memory` (GET)
+   - メモリ作成: `/api/memory/create` (POST)
+   - メモリ取得: `/api/memory/<memory_id>` (GET)
+   - メモリ更新: `/api/memory/<memory_id>` (PUT)
+   - メモリ削除: `/api/memory/<memory_id>` (DELETE)
+   - メモリ検索: `/api/memory/search` (POST)
+
+4. **routes/training.py**
+   - トレーニング状態取得: `/api/training/status` (GET)
+   - トレーニング開始: `/api/training/start` (POST)
+   - トレーニング停止: `/api/training/stop` (POST)
+   - トレーニングログ取得: `/api/training/logs` (GET)
+   - トレーニングメトリクス取得: `/api/training/metrics` (GET)
+   - トレーニングデータ一覧: `/api/training/data` (GET)
+   - トレーニングデータアップロード: `/api/training/data/upload` (POST)
+   - トレーニングデータ削除: `/api/training/data/<filename>` (DELETE)
+
+5. **routes/upload.py**
+   - ファイルアップロード: `/api/upload` (POST)
+   - アップロードファイル一覧: `/api/uploads` (GET)
+   - ファイルダウンロード: `/api/uploads/<filename>` (GET)
+   - ファイル削除: `/api/uploads/<filename>` (DELETE)
+   - データインポート: `/api/upload/import` (POST)
+
+6. **routes/workspace.py**
+   - ワークスペース情報取得: `/api/workspace` (GET)
+   - ディレクトリ閲覧: `/api/workspace/browse` (GET)
+   - ディレクトリ作成: `/api/workspace/mkdir` (POST)
+   - ファイルアップロード: `/api/workspace/upload` (POST)
+   - ファイルダウンロード: `/api/workspace/download` (GET)
+   - アイテム削除: `/api/workspace/delete` (POST)
+   - アイテム名前変更: `/api/workspace/rename` (POST)
+   - ファイル読み取り: `/api/workspace/read` (GET)
+   - ファイル書き込み: `/api/workspace/write` (POST)
+
+### 機能の詳細
+1. **モデル管理機能**
+   - モデルディレクトリのスキャンと情報収集
+   - モデルの選択と設定保存
+   - プロファイルと連携したモデル管理
+
+2. **プロファイル管理機能**
+   - プロファイルディレクトリのスキャンと情報収集
+   - プロファイル作成・編集・削除
+   - アクティブプロファイルの切り替え
+
+3. **メモリ管理機能**
+   - AIのメモリ（記憶）を保存・管理
+   - タグと強度によるメモリの整理
+   - メモリ検索とフィルタリング
+
+4. **トレーニング管理機能**
+   - トレーニングプロセスの制御（開始・停止）
+   - トレーニングデータの管理
+   - トレーニングの進捗とメトリクスの収集
+
+5. **アップロード管理機能**
+   - セキュアなファイルアップロード処理
+   - プロファイル別のアップロードフォルダ管理
+   - アップロード記録の保持
+
+6. **ワークスペース管理機能**
+   - ファイルシステム操作（閲覧・作成・削除・編集）
+   - プロファイル別のワークスペース
+   - テキストファイルの読み書き
+
+### アーキテクチャの改善点
+1. **モジュール化**
+   - 機能ごとに分割された小さなモジュール
+   - 単一責任の原則に基づいた設計
+   - 依存性の明確化
+
+2. **エラーハンドリング**
+   - 一貫したエラーメッセージ形式
+   - 詳細なログ記録
+   - 適切なHTTPステータスコード
+
+3. **セキュリティ**
+   - パス走査攻撃の防止
+   - 安全なファイル名処理
+   - 適切なアクセス制御
+
+### 次のステップ
+1. **テストの実施**
+   - 各APIエンドポイントの単体テスト
+   - 統合テスト
+   - エラーケースのテスト
+
+2. **ドキュメントの拡充**
+   - API仕様書の作成
+   - セットアップガイドの更新
+   - 開発者向けドキュメント
+
+3. **UIとの連携強化**
+   - フロントエンドコードの更新
+   - 新APIとの統合
+   - ユーザーエクスペリエンスの向上
+
+### 注意点
+1. **既存機能との互換性**
+   - 既存のapp.pyからの移行に注意
+   - 後方互換性の確保
+
+2. **設定依存関係**
+   - config.pyの更新が必要な場合がある
+   - 環境変数の設定確認
+
 ## 2025年3月23日の作業（更新3）
 
 ### コードベースのリファクタリング

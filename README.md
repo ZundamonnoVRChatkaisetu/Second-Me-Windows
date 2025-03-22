@@ -65,25 +65,37 @@ scripts\setup.bat
 - llama.cppがビルドされます
 - フロントエンド環境がセットアップされます
 
-3. サービスの開始（新UI版）
+3. llama-server.exeの設定
+```cmd
+setup-llama-server.bat
+```
+
+これにより自動的に:
+- llama-server.exeの存在確認と配置ガイダンス
+- モデルディレクトリの確認と設定ガイダンス
+- 詳細なセットアップ手順の案内
+
+> **注意**: チャット機能を利用するには、llama-server.exeが必要です。詳細な手順は[llama-server.exeの使用ガイド](docs/llama_server_guide.md)を参照してください。
+
+4. サービスの開始（新UI版）
 ```cmd
 start-new-ui.bat
 ```
 
-4. サービスへのアクセス
+5. サービスへのアクセス
 ブラウザを開き、`http://localhost:3000` にアクセスしてください
 
-5. 従来のUIで起動する場合
+6. 従来のUIで起動する場合
 ```cmd
 start-all-in-one.bat
 ```
 
-6. CORS問題が発生した場合
+7. CORS問題が発生した場合
 ```cmd
 start-with-cors.bat
 ```
 
-7. 接続問題の診断
+8. 接続問題の診断
 ```cmd
 debug-connection.bat
 ```
@@ -94,7 +106,7 @@ debug-connection.bat
 新UIバージョンでは以下の機能が含まれています：
 
 - **ホームページ**: Second Meの概要と機能の紹介
-- **チャット機能**: 高度なチャットインターフェース
+- **チャット機能**: 高度なチャットインターフェース（llama-server.exeを使用）
 - **AIセルフ作成プロセス**: ステップバイステップのセットアップガイド
   - アイデンティティの定義
   - 思い出のアップロード
@@ -103,6 +115,24 @@ debug-connection.bat
 
 ### 従来のUI（チャットのみ）
 シンプルなチャットインターフェースのみを提供します。
+
+## チャット機能について
+
+このプロジェクトでは、Windows環境でllama-server.exeを使用してチャット機能を実現しています。チャット機能を利用するには以下の手順を実行してください：
+
+1. **llama-server.exeの入手**
+   - [llama.cppリリースページ](https://github.com/ggml-org/llama.cpp/releases)から最新のWindows用ビルド済みバイナリをダウンロード
+   - `llama-server.exe`を`dependencies/llama.cpp/`ディレクトリに配置
+
+2. **GGUFモデルの入手と配置**
+   - GGUFフォーマットのモデル（例：Qwen2, LLaMa, Mistral）を入手
+   - `models/`ディレクトリに配置
+
+3. **チャットの利用**
+   - アプリケーションを起動後、左側のプロファイル選択
+   - チャットインターフェースからメッセージを送信
+
+詳細な設定とトラブルシューティングについては、[llama-server.exeの使用ガイド](docs/llama_server_guide.md)を参照してください。
 
 ## Python仮想環境について
 
@@ -177,6 +207,10 @@ VENV_NAME=second-me-venv
 3. **バックエンド接続エラー**
    - `debug-connection.bat`を実行してネットワーク接続を診断してください。
    - 必要に応じて`start-with-cors.bat`を使用してCORS問題を解決してください。
+
+4. **llama-server.exeが見つからないエラー**
+   - `setup-llama-server.bat`を実行してllama-server.exeの設定を確認してください。
+   - `dependencies/llama.cpp/`ディレクトリにllama-server.exeが正しく配置されているか確認してください。
 
 ## 新しいUIコンポーネントの追加について
 

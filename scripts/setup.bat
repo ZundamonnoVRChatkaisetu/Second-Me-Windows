@@ -5,16 +5,23 @@ setlocal enabledelayedexpansion
 set VERSION=1.0.0
 
 :: Default environment variables
-if not defined CONDA_DEFAULT_ENV set CONDA_DEFAULT_ENV=second-me
-if not defined LOCAL_APP_PORT set LOCAL_APP_PORT=8002
-if not defined LOCAL_FRONTEND_PORT set LOCAL_FRONTEND_PORT=3000
+set VENV_NAME=second-me-venv
+set LOCAL_APP_PORT=8002
+set LOCAL_FRONTEND_PORT=3000
 
 :: Create or check for .env file
 if not exist .env (
     echo Creating default .env file...
-    echo CONDA_DEFAULT_ENV=second-me>.env
-    echo LOCAL_APP_PORT=8002>>.env
-    echo LOCAL_FRONTEND_PORT=3000>>.env
+    echo VENV_NAME=%VENV_NAME%>.env
+    echo LOCAL_APP_PORT=%LOCAL_APP_PORT%>>.env
+    echo LOCAL_FRONTEND_PORT=%LOCAL_FRONTEND_PORT%>>.env
+) else (
+    :: Load environment variables from .env
+    for /f "tokens=1,* delims==" %%a in (.env) do (
+        if "%%a"=="VENV_NAME" set VENV_NAME=%%b
+        if "%%a"=="LOCAL_APP_PORT" set LOCAL_APP_PORT=%%b
+        if "%%a"=="LOCAL_FRONTEND_PORT" set LOCAL_FRONTEND_PORT=%%b
+    )
 )
 
 :: Display header
@@ -85,78 +92,35 @@ if %errorlevel% neq 0 (
 )
 call :log_success "CMake check passed."
 
-:: Check for Conda
-call :log_section "SETTING UP CONDA ENVIRONMENT"
-call :log_info "Checking for Conda installation..."
-conda --version > nul 2>&1
-if %errorlevel% neq 0 (
-    call :log_warning "Conda is not installed or not in PATH."
-    call :log_info "Installing Miniconda..."
-    
-    :: Download Miniconda installer
-    call :log_info "Downloading Miniconda installer..."
-    curl -o miniconda.exe https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe
-    if %errorlevel% neq 0 (
-        call :log_error "Failed to download Miniconda installer."
-        exit /b 1
-    )
-    
-    :: Install Miniconda silently
-    call :log_info "Installing Miniconda..."
-    start /wait "" miniconda.exe /InstallationType=JustMe /RegisterPython=0 /S /D=%UserProfile%\Miniconda3
-    if %errorlevel% neq 0 (
-        call :log_error "Failed to install Miniconda."
-        exit /b 1
-    )
-    
-    :: Delete installer
-    del miniconda.exe
-    
-    :: Update PATH for current session
-    set "PATH=%UserProfile%\Miniconda3;%UserProfile%\Miniconda3\Scripts;%UserProfile%\Miniconda3\Library\bin;%PATH%"
-    
-    :: Initialize conda
-    call :log_info "Initializing Conda..."
-    call conda init cmd.exe
-    
-    call :log_success "Miniconda installed successfully."
-    call :log_warning "Please restart your command prompt to use Conda, then run this script again."
-    exit /b 0
-)
-call :log_success "Conda is installed."
+:: Setting up Python virtual environment with venv
+call :log_section "SETTING UP PYTHON VIRTUAL ENVIRONMENT"
+call :log_info "Setting up Python venv: %VENV_NAME%..."
 
-:: Create or update conda environment
-call :log_info "Setting up conda environment: %CONDA_DEFAULT_ENV%..."
-if not exist environment.yml (
-    call :log_error "environment.yml file not found."
-    exit /b 1
-)
-
-conda env list | findstr /C:"%CONDA_DEFAULT_ENV%" > nul
-if %errorlevel% equ 0 (
-    call :log_info "Environment exists, updating dependencies..."
-    conda env update -f environment.yml -n %CONDA_DEFAULT_ENV%
+:: Check if venv already exists
+if exist %VENV_NAME% (
+    call :log_info "Found existing venv: %VENV_NAME%"
 ) else (
-    call :log_info "Creating new environment..."
-    conda env create -f environment.yml -n %CONDA_DEFAULT_ENV%
+    call :log_info "Creating new venv environment: %VENV_NAME%..."
+    python -m venv %VENV_NAME%
+    if %errorlevel% neq 0 (
+        call :log_error "Failed to create venv environment."
+        exit /b 1
+    )
+    call :log_success "Python venv created successfully."
 )
 
+:: Activate the venv
+call :log_info "Activating venv environment..."
+call %VENV_NAME%\Scripts\activate.bat
 if %errorlevel% neq 0 (
-    call :log_error "Failed to set up conda environment."
+    call :log_error "Failed to activate venv environment."
     exit /b 1
 )
-call :log_success "Conda environment setup completed."
-
-:: Activate the environment
-call :log_info "Activating conda environment..."
-call conda activate %CONDA_DEFAULT_ENV%
-if %errorlevel% neq 0 (
-    call :log_error "Failed to activate conda environment."
-    exit /b 1
-)
+call :log_success "Python venv activated successfully."
 
 :: Check and install dependencies with pip
 call :log_info "Installing Python dependencies..."
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
     call :log_error "Failed to install Python dependencies."
@@ -323,15 +287,12 @@ call :log_section "SETUP COMPLETE"
 call :log_success "Second-Me Windows setup completed successfully!"
 call :log_info "You can now start the application using: scripts\start.bat"
 
+:: Deactivate venv before exiting
+call %VENV_NAME%\Scripts\deactivate.bat
+
 exit /b 0
 
 :: ==================== UTILITY FUNCTIONS ====================
-
-:get_timestamp
-set hour=%time:~0,2%
-if "%hour:~0,1%" == " " set hour=0%hour:~1,1%
-set timestamp=%date:~-4%-%date:~3,2%-%date:~0,2% %hour%:%time:~3,2%:%time:~6,2%
-exit /b
 
 :log_info
 echo [INFO]    %~1

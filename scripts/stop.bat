@@ -1,29 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Color definitions (Windows)
-set RED=[91m
-set GREEN=[92m
-set YELLOW=[93m
-set BLUE=[94m
-set MAGENTA=[95m
-set CYAN=[96m
-set GRAY=[90m
-set BOLD=[1m
-set NC=[0m
-
 :: Display header
 echo.
-echo %CYAN%
-echo  ███████╗███████╗ ██████╗ ██████╗ ███╗   ██╗██████╗       ███╗   ███╗███████╗
-echo  ██╔════╝██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔══██╗      ████╗ ████║██╔════╝
-echo  ███████╗█████╗  ██║     ██║   ██║██╔██╗ ██║██║  ██║█████╗██╔████╔██║█████╗  
-echo  ╚════██║██╔══╝  ██║     ██║   ██║██║╚██╗██║██║  ██║╚════╝██║╚██╔╝██║██╔══╝  
-echo  ███████║███████╗╚██████╗╚██████╔╝██║ ╚████║██████╔╝      ██║ ╚═╝ ██║███████╗
-echo  ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═════╝       ╚═╝     ╚═╝╚══════╝
-echo %NC%
-echo %BOLD%Second-Me Windows Stop Script%NC%
-echo %GRAY%%date% %time%%NC%
+echo  ================================================
+echo    Second-Me Windows Stop Script
+echo  ================================================
+echo  %date% %time%
 echo.
 
 call :log_section "STOPPING SERVICES"
@@ -115,36 +98,26 @@ exit /b 0
 
 :: ==================== UTILITY FUNCTIONS ====================
 
-:get_timestamp
-set hour=%time:~0,2%
-if "%hour:~0,1%" == " " set hour=0%hour:~1,1%
-set timestamp=%date:~-4%-%date:~3,2%-%date:~0,2% %hour%:%time:~3,2%:%time:~6,2%
-exit /b
-
 :log_info
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %GREEN%[INFO]%NC%    %~1
+echo [INFO]    %~1
 exit /b
 
 :log_success
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %GREEN%[SUCCESS]%NC% %~1
+echo [SUCCESS] %~1
 exit /b
 
 :log_warning
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %YELLOW%[WARNING]%NC% %~1
+echo [WARNING] %~1
 exit /b
 
 :log_error
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %RED%[ERROR]%NC%   %~1
+echo [ERROR]   %~1
 exit /b
 
 :log_section
 echo.
-echo %CYAN%════════════════════════════════════════════════════════════════════════════════%NC%
-echo %CYAN%  %~1%NC%
-echo %CYAN%════════════════════════════════════════════════════════════════════════════════%NC%
+echo  ================================================
+echo    %~1
+echo  ================================================
 echo.
 exit /b

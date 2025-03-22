@@ -5,14 +5,16 @@ setlocal enabledelayedexpansion
 set VERSION=1.0.0
 
 :: Default environment variables
-if not defined CONDA_DEFAULT_ENV set CONDA_DEFAULT_ENV=second-me
-if not defined LOCAL_APP_PORT set LOCAL_APP_PORT=8002
-if not defined LOCAL_FRONTEND_PORT set LOCAL_FRONTEND_PORT=3000
+set VENV_NAME=second-me-venv
+set LOCAL_APP_PORT=8002
+set LOCAL_FRONTEND_PORT=3000
 
 :: Load environment variables from .env if exists
 if exist .env (
     for /f "tokens=1,* delims==" %%a in (.env) do (
-        set %%a=%%b
+        if "%%a"=="VENV_NAME" set VENV_NAME=%%b
+        if "%%a"=="LOCAL_APP_PORT" set LOCAL_APP_PORT=%%b
+        if "%%a"=="LOCAL_FRONTEND_PORT" set LOCAL_FRONTEND_PORT=%%b
     )
 )
 
@@ -62,10 +64,10 @@ if "%BACKEND_ONLY%"=="false" (
 call :log_success "All ports are available"
 
 :: Start backend service
-call :log_info "Starting backend service with conda environment: %CONDA_DEFAULT_ENV%"
+call :log_info "Starting backend service with venv: %VENV_NAME%"
 
 :: Start in a new window to avoid blocking current console
-start "Second-Me Backend" cmd /c "conda activate %CONDA_DEFAULT_ENV% && python app.py > logs\backend.log 2>&1"
+start "Second-Me Backend" cmd /c "%VENV_NAME%\Scripts\activate.bat && python app.py > logs\backend.log 2>&1"
 if %errorlevel% neq 0 (
     call :log_error "Failed to start backend service."
     exit /b 1
@@ -75,7 +77,7 @@ if %errorlevel% neq 0 (
 for /f "tokens=2" %%a in ('tasklist /fi "windowtitle eq Second-Me Backend" /fo list ^| find "PID:"') do (
     echo %%a> run\.backend.pid
 )
-call :log_info "Backend service started in background with PID: %PID%"
+call :log_info "Backend service started in background"
 
 :: Wait for backend to be healthy
 call :log_info "Waiting for backend service to be ready..."
@@ -210,10 +212,9 @@ goto :check_frontend_loop
 :check_setup_complete
 call :log_info "Checking if setup is complete..."
 
-:: Check if conda environment exists
-conda env list | findstr /C:"%CONDA_DEFAULT_ENV%" > nul
-if %errorlevel% neq 0 (
-    call :log_error "Conda environment '%CONDA_DEFAULT_ENV%' not found. Please run 'scripts\setup.bat' first."
+:: Check if venv exists
+if not exist %VENV_NAME% (
+    call :log_error "Python virtual environment '%VENV_NAME%' not found. Please run 'scripts\setup.bat' first."
     exit /b 1
 )
 

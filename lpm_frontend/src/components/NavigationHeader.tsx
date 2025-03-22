@@ -106,6 +106,9 @@ const NavigationHeader: React.FC = () => {
                   <Link href="/profiles/create" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                     新規プロファイル作成
                   </Link>
+                  <Link href="/profiles/wizard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    ウィザード形式で作成
+                  </Link>
                 </div>
               </div>
             )}
@@ -125,8 +128,8 @@ const NavigationHeader: React.FC = () => {
             GitHub でスターを付ける
           </Link>
           
-          {/* リンク先を/createから/profiles/createに変更 */}
-          <Link href="/profiles/create">
+          {/* リンク先をウィザードページに変更 */}
+          <Link href="/profiles/wizard">
             <Button 
               variant="primary" 
               size="sm" 

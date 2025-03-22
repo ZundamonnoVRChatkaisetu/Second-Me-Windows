@@ -71,8 +71,9 @@ LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependenci
 IS_WINDOWS = sys.platform.startswith('win')
 
 # Windows環境では.exe拡張子を追加
+# Windows環境ではllama-server.exe, それ以外ではmainを使用
 if IS_WINDOWS:
-    LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main.exe')
+    LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'llama-server.exe')
 else:
     LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main')
 
@@ -622,70 +623,92 @@ def chat():
         else:
             prompt = f"<s>[INST] {message} [/INST]</s>"
         
-        # llama.cppコマンドの構築
-        cmd = [
-            LLAMACPP_MAIN,
-            '-m', SELECTED_MODEL_PATH,
-            '-p', prompt,
-            '--ctx-size', '2048',
-            '--temp', '0.7',
-            '--top-p', '0.9',
-            '--seed', '-1',
-            '-n', '1024',
-            '--repeat-penalty', '1.1',
-            '-ngl', '1'  # GPUレイヤー数（GPUを使用する場合）
-        ]
-        
-        logger.info(f"Running command: {' '.join(cmd)}")
-        
-        # サブプロセスとして実行（タイムアウト60秒）
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8'
-        )
-        
-        try:
-            stdout, stderr = process.communicate(timeout=60)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            logger.error("llama.cpp process timed out")
+        # llama-server.exeを使用する場合（Windowsの場合）
+        if IS_WINDOWS and LLAMACPP_MAIN.endswith('llama-server.exe'):
+            # llama-serverはREST APIを使用するためセットアップが異なります
+            # llama-serverの起動コマンド（すでに実行中でない場合）
+            # この部分は実際の実装に合わせて調整が必要です
+            server_process = None
+            try:
+                # サーバーに接続してチャットリクエストを送信
+                # 実際のエンドポイントやパラメータは実装に合わせて調整
+                chat_response = "llama-server.exeを使用したチャット機能は現在実装中です。後のバージョンで提供予定です。"
+            finally:
+                # サーバープロセスのクリーンアップ（必要に応じて）
+                if server_process:
+                    server_process.terminate()
+            
             return jsonify({
-                'message': "応答生成がタイムアウトしました。再度お試しください。",
+                'message': chat_response,
                 'timestamp': datetime.now().isoformat()
             })
         
-        # エラーチェック
-        if process.returncode != 0:
-            logger.error(f"llama.cpp process failed with code {process.returncode}: {stderr}")
-            return jsonify({
-                'message': f"モデル実行中にエラーが発生しました: {stderr[:200]}...",
-                'timestamp': datetime.now().isoformat()
-            })
-        
-        # 応答の抽出
-        assistant_response = ""
-        if "[/INST]" in stdout:
-            # 最後の[/INST]の後の部分を取得
-            assistant_response = stdout.split("[/INST]")[-1].strip()
+        # 通常のmain実行ファイルを使用する場合
         else:
-            assistant_response = stdout.strip()
-        
-        # 応答が空の場合
-        if not assistant_response:
-            logger.warning("Empty response from llama.cpp")
+            # llama.cppコマンドの構築
+            cmd = [
+                LLAMACPP_MAIN,
+                '-m', SELECTED_MODEL_PATH,
+                '-p', prompt,
+                '--ctx-size', '2048',
+                '--temp', '0.7',
+                '--top-p', '0.9',
+                '--seed', '-1',
+                '-n', '1024',
+                '--repeat-penalty', '1.1',
+                '-ngl', '1'  # GPUレイヤー数（GPUを使用する場合）
+            ]
+            
+            logger.info(f"Running command: {' '.join(cmd)}")
+            
+            # サブプロセスとして実行（タイムアウト60秒）
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8'
+            )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                logger.error("llama.cpp process timed out")
+                return jsonify({
+                    'message': "応答生成がタイムアウトしました。再度お試しください。",
+                    'timestamp': datetime.now().isoformat()
+                })
+            
+            # エラーチェック
+            if process.returncode != 0:
+                logger.error(f"llama.cpp process failed with code {process.returncode}: {stderr}")
+                return jsonify({
+                    'message': f"モデル実行中にエラーが発生しました: {stderr[:200]}...",
+                    'timestamp': datetime.now().isoformat()
+                })
+            
+            # 応答の抽出
+            assistant_response = ""
+            if "[/INST]" in stdout:
+                # 最後の[/INST]の後の部分を取得
+                assistant_response = stdout.split("[/INST]")[-1].strip()
+            else:
+                assistant_response = stdout.strip()
+            
+            # 応答が空の場合
+            if not assistant_response:
+                logger.warning("Empty response from llama.cpp")
+                return jsonify({
+                    'message': "モデルからの応答が空でした。再度お試しください。",
+                    'timestamp': datetime.now().isoformat()
+                })
+            
+            # 成功レスポンス
             return jsonify({
-                'message': "モデルからの応答が空でした。再度お試しください。",
+                'message': assistant_response,
                 'timestamp': datetime.now().isoformat()
             })
-        
-        # 成功レスポンス
-        return jsonify({
-            'message': assistant_response,
-            'timestamp': datetime.now().isoformat()
-        })
     
     except Exception as e:
         logger.exception(f"Error during chat processing: {str(e)}")

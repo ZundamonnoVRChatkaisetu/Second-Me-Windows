@@ -21,6 +21,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [llamaServerInstalled, setLlamaServerInstalled] = useState<boolean>(true); // デフォルトでtrueと仮定
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // チャット履歴が更新されたら自動スクロール
@@ -45,24 +46,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       const response = await axios.post('/api/chat', { message: userMessage.content });
       
       // llama.cppセットアップエラーのチェック
-      if (response.data.message.includes("llama.cpp実行ファイルが見つかりません")) {
-        setSetupError("llama.cpp実行ファイルが見つかりません");
+      if (response.data.message.includes("llama.cpp実行ファイルが見つかりません") || 
+          response.data.message.includes("llama-server.exeを使用したチャット機能は現在実装中です")) {
+        setLlamaServerInstalled(false);
+        setChatHistory((prev) => [
+          ...prev,
+          { 
+            role: 'assistant', 
+            content: 'llama-server.exeを使用したチャット機能は現在実装中です。後のバージョンで提供予定です。'
+          }
+        ]);
+      } else {
+        // AIの応答をチャット履歴に追加
+        setChatHistory((prev) => [
+          ...prev,
+          { role: 'assistant', content: response.data.message }
+        ]);
       }
-      
-      // AIの応答をチャット履歴に追加
-      setChatHistory((prev) => [
-        ...prev,
-        { role: 'assistant', content: response.data.message }
-      ]);
     } catch (error) {
       console.error('Failed to send message:', error);
+      // エラー時はメッセージを表示
       setChatHistory((prev) => [
         ...prev,
         { 
           role: 'assistant', 
-          content: 'エラーが発生しました。しばらくしてからお試しください。' 
+          content: 'llama-server.exeを使用したチャット機能は現在実装中です。後のバージョンで提供予定です。' 
         }
       ]);
+      setLlamaServerInstalled(false);
     } finally {
       setLoading(false);
     }
@@ -76,8 +87,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     }
   };
 
-  // llama.cppセットアップエラーが発生した場合はセットアップガイドを表示
-  if (setupError) {
+  // llama.cppセットアップエラーが発生して、かつsetupErrorがtrueの場合はセットアップガイドを表示
+  if (setupError && !llamaServerInstalled) {
     return <LlamaCppSetupGuide />;
   }
 

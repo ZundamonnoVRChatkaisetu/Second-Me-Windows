@@ -29,6 +29,7 @@ const StepCard: React.FC<StepCardProps> = ({ number, title, description, imageSr
               fill
               style={{ objectFit: 'cover' }}
               priority={number <= 2}
+              // fetchPriorityプロパティを削除
             />
           ) : (
             <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">

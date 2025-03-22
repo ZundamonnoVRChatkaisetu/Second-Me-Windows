@@ -15,33 +15,33 @@ if exist .env (
 
 echo.
 echo  ================================================
-echo    Second-Me Windows バックエンド（フォアグラウンド）
+echo    Second-Me Windows Backend (Foreground Mode)
 echo  ================================================
 echo.
-echo このウィンドウではバックエンドを直接実行します。
-echo 別の新しいウィンドウでフロントエンドを起動してください。
+echo This window will run the backend directly in this console.
+echo Please start the frontend in a separate window.
 echo.
-echo フロントエンド起動コマンド:
+echo Frontend startup command:
 echo   cd lpm_frontend
 echo   npm run dev
 echo.
-echo ブラウザで開くURL: http://localhost:3000
+echo Browser URL: http://localhost:3000
 echo.
-echo バックエンドはこのウィンドウで動作します。Ctrl+C で終了できます。
+echo Backend will run in this window. Press Ctrl+C to stop.
 echo.
-echo バックエンドを起動中...
+echo Starting backend...
 echo ---------------------------------------------------
 echo.
 
-:: フォルダ存在確認
+:: Check folder exists
 if not exist logs mkdir logs
 
-:: 依存関係をチェック
+:: Check dependencies
 call %VENV_NAME%\Scripts\activate.bat
 
-:: バックエンドを起動（フォアグラウンドで）
+:: Start backend (in foreground)
 python app.py
 
-:: ここには通常到達しないが、念のため
+:: Should not normally reach here
 call %VENV_NAME%\Scripts\deactivate.bat
 pause

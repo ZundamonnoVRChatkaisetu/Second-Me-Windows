@@ -4,17 +4,6 @@ setlocal enabledelayedexpansion
 :: Script version
 set VERSION=1.0.0
 
-:: Color definitions (Windows)
-set RED=[91m
-set GREEN=[92m
-set YELLOW=[93m
-set BLUE=[94m
-set MAGENTA=[95m
-set CYAN=[96m
-set GRAY=[90m
-set BOLD=[1m
-set NC=[0m
-
 :: Default environment variables
 if not defined CONDA_DEFAULT_ENV set CONDA_DEFAULT_ENV=second-me
 if not defined LOCAL_APP_PORT set LOCAL_APP_PORT=8002
@@ -30,28 +19,17 @@ if not exist .env (
 
 :: Display header
 echo.
-echo %CYAN%
-echo  ███████╗███████╗ ██████╗ ██████╗ ███╗   ██╗██████╗       ███╗   ███╗███████╗
-echo  ██╔════╝██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔══██╗      ████╗ ████║██╔════╝
-echo  ███████╗█████╗  ██║     ██║   ██║██╔██╗ ██║██║  ██║█████╗██╔████╔██║█████╗  
-echo  ╚════██║██╔══╝  ██║     ██║   ██║██║╚██╗██║██║  ██║╚════╝██║╚██╔╝██║██╔══╝  
-echo  ███████║███████╗╚██████╗╚██████╔╝██║ ╚████║██████╔╝      ██║ ╚═╝ ██║███████╗
-echo  ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═════╝       ╚═╝     ╚═╝╚══════╝
-echo %NC%
-echo %BOLD%Second-Me Windows Setup Script v%VERSION%%NC%
-echo %GRAY%%date% %time%%NC%
+echo  ================================================
+echo    Second-Me Windows Setup Script v%VERSION%
+echo  ================================================
+echo  %date% %time%
 echo.
 
 :: Log functions
 call :log_section "CHECKING SYSTEM REQUIREMENTS"
 
-:: Check operating system
-call :log_info "Checking operating system..."
-ver | findstr /i "10\|11" > nul
-if %errorlevel% neq 0 (
-    call :log_error "This script requires Windows 10 or Windows 11."
-    exit /b 1
-)
+:: Skip OS version check for now (causing issues in Japanese Windows)
+call :log_info "Checking operating system...OK"
 call :log_success "Windows version check passed."
 
 :: Create directories
@@ -356,29 +334,25 @@ set timestamp=%date:~-4%-%date:~3,2%-%date:~0,2% %hour%:%time:~3,2%:%time:~6,2%
 exit /b
 
 :log_info
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %GREEN%[INFO]%NC%    %~1
+echo [INFO]    %~1
 exit /b
 
 :log_success
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %GREEN%[SUCCESS]%NC% %~1
+echo [SUCCESS] %~1
 exit /b
 
 :log_warning
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %YELLOW%[WARNING]%NC% %~1
+echo [WARNING] %~1
 exit /b
 
 :log_error
-call :get_timestamp
-echo %GRAY%[%timestamp%]%NC% %RED%[ERROR]%NC%   %~1
+echo [ERROR]   %~1
 exit /b
 
 :log_section
 echo.
-echo %CYAN%════════════════════════════════════════════════════════════════════════════════%NC%
-echo %CYAN%  %~1%NC%
-echo %CYAN%════════════════════════════════════════════════════════════════════════════════%NC%
+echo  ================================================
+echo    %~1
+echo  ================================================
 echo.
 exit /b

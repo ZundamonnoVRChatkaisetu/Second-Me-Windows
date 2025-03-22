@@ -1,5 +1,6 @@
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const httpProxy = require('http-proxy-middleware');
+const createProxyMiddleware = httpProxy.createProxyMiddleware;
 
 // 環境変数を読み込む
 const BACKEND_PORT = process.env.BACKEND_PORT || 8002;

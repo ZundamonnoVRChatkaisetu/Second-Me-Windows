@@ -125,7 +125,8 @@ const NavigationHeader: React.FC = () => {
             GitHub でスターを付ける
           </Link>
           
-          <Link href="/create">
+          {/* リンク先を/createから/profiles/createに変更 */}
+          <Link href="/profiles/create">
             <Button 
               variant="primary" 
               size="sm" 
@@ -136,7 +137,7 @@ const NavigationHeader: React.FC = () => {
                   : 'bg-white text-blue-600 hover:bg-blue-50'
               }`}
             >
-              <span className="hidden sm:inline">第二の自分を作る</span>
+              <span className="hidden sm:inline">第2の自分を作る</span>
               <span className="sm:hidden">作成</span>
             </Button>
           </Link>

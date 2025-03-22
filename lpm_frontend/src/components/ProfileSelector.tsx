@@ -36,7 +36,10 @@ const ProfileSelector: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      console.log("Fetching profiles from API...");
       const response = await axios.get('/api/profiles');
+      console.log("Profiles response:", response.data);
+      
       const profilesList = response.data.profiles || [];
       setProfiles(profilesList);
       
@@ -60,24 +63,61 @@ const ProfileSelector: React.FC = () => {
       setError(null);
       setSuccess(null);
       
-      await axios.post('/api/profiles/activate', { profile_id: profileId });
+      console.log(`Activating profile ${profileId}...`);
       
-      // 選択状態を更新
-      setProfiles(prevProfiles => prevProfiles.map(profile => ({
-        ...profile,
-        active: profile.id === profileId
-      })));
+      // リクエストの詳細をログ出力
+      const requestConfig = {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      };
       
-      setActiveProfileId(profileId);
+      // リクエスト本文
+      const requestData = { profile_id: profileId };
       
-      const activeProfile = profiles.find(p => p.id === profileId);
-      setSuccess(`プロファイル「${activeProfile?.name || profileId}」をアクティブにしました`);
+      console.log("Request data:", requestData);
+      console.log("Request config:", requestConfig);
       
-      // 3秒後に成功メッセージを非表示
-      setTimeout(() => setSuccess(null), 3000);
+      try {
+        const response = await axios.post('/api/profiles/activate', requestData, requestConfig);
+        console.log("Activation response:", response);
+        
+        // 選択状態を更新
+        setProfiles(prevProfiles => prevProfiles.map(profile => ({
+          ...profile,
+          active: profile.id === profileId
+        })));
+        
+        setActiveProfileId(profileId);
+        
+        const activeProfile = profiles.find(p => p.id === profileId);
+        setSuccess(`プロファイル「${activeProfile?.name || profileId}」をアクティブにしました`);
+        
+        // 3秒後に成功メッセージを非表示
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (axiosErr: any) {
+        console.error("Axios error details:", {
+          message: axiosErr.message,
+          response: axiosErr.response,
+          request: axiosErr.request,
+          config: axiosErr.config
+        });
+        throw axiosErr;
+      }
     } catch (err: any) {
       console.error('Failed to activate profile:', err);
-      setError('プロファイルのアクティブ化に失敗しました。');
+      
+      // エラー詳細をログ出力
+      if (err.response) {
+        console.error('Error response:', {
+          data: err.response.data,
+          status: err.response.status,
+          headers: err.response.headers
+        });
+      }
+      
+      setError('プロファイルのアクティブ化に失敗しました。サーバーログを確認してください。');
     } finally {
       setActivating(false);
     }

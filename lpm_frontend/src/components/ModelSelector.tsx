@@ -8,7 +8,6 @@ import {
   SelectValue 
 } from './ui/select';
 import { Button } from './ui/button';
-import { AlertCircle, Check, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface OllamaModel {
@@ -93,12 +92,12 @@ const ModelSelector: React.FC = () => {
       
       {loading ? (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-6 w-6 animate-spin text-blue-500 mr-2" />
+          <div className="animate-spin h-6 w-6 border-2 border-blue-500 rounded-full border-t-transparent mr-2"></div>
           <span>モデル一覧を取得中...</span>
         </div>
       ) : error ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4 mr-2" />
+          <span className="text-red-600">⚠️</span>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : models.length === 0 ? (
@@ -132,7 +131,7 @@ const ModelSelector: React.FC = () => {
             <Button onClick={applySelectedModel} disabled={!selectedModel || applying}>
               {applying ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <div className="animate-spin h-4 w-4 border-2 border-current rounded-full border-t-transparent mr-2"></div>
                   適用中...
                 </>
               ) : (
@@ -142,7 +141,7 @@ const ModelSelector: React.FC = () => {
             
             {success && (
               <div className="flex items-center text-green-600">
-                <Check className="h-4 w-4 mr-2" />
+                <span className="mr-2">✓</span>
                 モデルが正常に適用されました！
               </div>
             )}

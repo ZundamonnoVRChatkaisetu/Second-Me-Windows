@@ -14,6 +14,7 @@ import uuid
 import time
 import threading
 import shutil
+import re
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
@@ -305,6 +306,7 @@ def start_training_process(profiles_dir, active_profile, training_params):
     epochs = training_params.get('epochs', 3)
     batch_size = training_params.get('batch_size', 8)
     categories = training_params.get('categories', [])  # 空の場合は全カテゴリ
+    auto_switch = training_params.get('auto_switch', True)  # トレーニング後に自動切り替えするかどうか
     
     # モデルが選択されているか確認
     if not model_path:
@@ -344,7 +346,8 @@ def start_training_process(profiles_dir, active_profile, training_params):
             'learning_rate': learning_rate,
             'epochs': epochs,
             'batch_size': batch_size,
-            'categories': categories
+            'categories': categories,
+            'auto_switch': auto_switch
         },
         'start_time': datetime.now().isoformat(),
         'status': 'preparing',
@@ -436,6 +439,10 @@ def run_training_process(training_id, training_info, training_dir, profiles_dir)
                 with open(log_file, 'a', encoding='utf-8') as f:
                     f.write(f"Step {step+1}/10, Loss: {loss:.4f}\n")
         
+        # トレーニング出力モデルをダミーで作成
+        with open(output_model, 'w', encoding='utf-8') as f:
+            f.write("This is a dummy model file for simulation purposes.")
+        
         # トレーニング完了
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(f"\n=== Training completed at {datetime.now().isoformat()} ===\n")
@@ -445,19 +452,56 @@ def run_training_process(training_id, training_info, training_dir, profiles_dir)
         TRAINING_PROCESSES[training_id]['status'] = 'completed'
         TRAINING_PROCESSES[training_id]['end_time'] = datetime.now()
         
-        # プロファイル設定を更新（トレーニング回数をインクリメント）
-        config_path = os.path.join(profiles_dir, profile_id, 'config.json')
-        if os.path.exists(config_path):
+        # トレーニングモデルを自動切り替え
+        if parameters.get('auto_switch', True):
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                
-                # トレーニング回数を更新
-                config['training_count'] = config.get('training_count', 0) + 1
-                config['last_training'] = datetime.now().isoformat()
-                
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, ensure_ascii=False, indent=2)
+                # プロファイル設定を更新
+                config_path = os.path.join(profiles_dir, profile_id, 'config.json')
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    
+                    # トレーニング回数を更新
+                    config['training_count'] = config.get('training_count', 0) + 1
+                    config['last_training'] = datetime.now().isoformat()
+                    
+                    # トレーニング済みモデルに切り替え
+                    prev_model = config.get('model_path', '')
+                    config['model_path'] = output_model
+                    config['prev_model_path'] = prev_model
+                    
+                    with open(config_path, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, ensure_ascii=False, indent=2)
+                    
+                    # ログに記録
+                    with open(log_file, 'a', encoding='utf-8') as f:
+                        f.write(f"\n=== Auto-switching model ===\n")
+                        f.write(f"Previous model: {prev_model}\n")
+                        f.write(f"New model: {output_model}\n")
+                        f.write(f"Model switched successfully at {datetime.now().isoformat()}\n")
+                    
+                    logger.info(f"Auto-switched model for profile {profile_id}: {output_model}")
+            except Exception as e:
+                logger.error(f"Failed to auto-switch model: {str(e)}")
+                # エラーログを記録
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"\n=== Error in auto-switching model ===\n")
+                    f.write(f"Error: {str(e)}\n")
+        else:
+            # 自動切り替えなし、通常のプロファイル更新
+            try:
+                config_path = os.path.join(profiles_dir, profile_id, 'config.json')
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    
+                    # トレーニング回数を更新
+                    config['training_count'] = config.get('training_count', 0) + 1
+                    config['last_training'] = datetime.now().isoformat()
+                    config['latest_trained_model'] = output_model
+                    
+                    with open(config_path, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 logger.error(f"Failed to update profile config: {str(e)}")
     
@@ -506,12 +550,21 @@ def get_training_status(training_id, profiles_dir, active_profile):
                     else:
                         status = 'unknown'  # ステータスが不明（中断された可能性）
             
+            # トレーニング完了後の自動切り替え情報を取得
+            model_switched = False
+            if status == 'completed' and os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    log_content = f.read()
+                    if "=== Auto-switching model ===" in log_content:
+                        model_switched = True
+            
             return {
                 'training_id': training_id,
                 'info': training_info,
                 'status': status,
                 'is_active': False,
-                'progress': 100 if status == 'completed' else 0
+                'progress': 100 if status == 'completed' else 0,
+                'model_switched': model_switched
             }
         else:
             return {"error": f"Training process not found: {training_id}"}, 404
@@ -535,6 +588,14 @@ def get_training_status(training_id, profiles_dir, active_profile):
             lines = f.readlines()
             log_content = ''.join(lines[-20:]) if lines else ""
     
+    # トレーニング完了後の自動切り替え情報を取得
+    model_switched = False
+    if status == 'completed' and 'log_file' in training_info and os.path.exists(training_info['log_file']):
+        with open(training_info['log_file'], 'r', encoding='utf-8') as f:
+            log_content_full = f.read()
+            if "=== Auto-switching model ===" in log_content_full:
+                model_switched = True
+    
     return {
         'training_id': training_id,
         'info': training_info,
@@ -542,7 +603,8 @@ def get_training_status(training_id, profiles_dir, active_profile):
         'is_active': True,
         'progress': progress,
         'log_preview': log_content,
-        'elapsed_time': elapsed
+        'elapsed_time': elapsed,
+        'model_switched': model_switched
     }
 
 
@@ -612,6 +674,7 @@ def get_training_history(profiles_dir, active_profile):
                 # ステータスを取得
                 status = 'unknown'
                 end_time = None
+                model_switched = False
                 
                 if log_file and os.path.exists(log_file):
                     with open(log_file, 'r', encoding='utf-8') as f:
@@ -623,6 +686,10 @@ def get_training_history(profiles_dir, active_profile):
                             match = re.search(r"=== Training completed at ([^\n]+) ===", log_content)
                             if match:
                                 end_time = match.group(1)
+                            
+                            # モデル切り替えを確認
+                            if "=== Auto-switching model ===" in log_content:
+                                model_switched = True
                         elif "=== ERROR at " in log_content:
                             status = 'error'
                             # エラー時間を取得
@@ -642,7 +709,8 @@ def get_training_history(profiles_dir, active_profile):
                     'status': status,
                     'active': (training_id in TRAINING_PROCESSES),
                     'start_time': training_info.get('start_time'),
-                    'end_time': end_time
+                    'end_time': end_time,
+                    'model_switched': model_switched
                 }
                 
                 history.append(history_entry)

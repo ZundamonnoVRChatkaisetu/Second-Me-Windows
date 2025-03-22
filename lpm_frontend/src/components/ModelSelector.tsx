@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from './ui/select';
-import { Button } from './ui/button';
-import { Alert, AlertDescription } from './ui/alert';
 
 interface OllamaModel {
   name: string;
@@ -19,6 +10,7 @@ interface OllamaModel {
 
 /**
  * Ollamaからモデル一覧を取得し、選択可能なUIを提供するコンポーネント
+ * 依存関係を最小限に保つために基本的なHTML要素のみを使用
  */
 const ModelSelector: React.FC = () => {
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -85,6 +77,11 @@ const ModelSelector: React.FC = () => {
     const gb = mb / 1024;
     return `${gb.toFixed(2)} GB`;
   };
+  
+  // 選択肢の変更ハンドラ
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedModel(e.target.value);
+  };
 
   return (
     <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -96,10 +93,10 @@ const ModelSelector: React.FC = () => {
           <span>モデル一覧を取得中...</span>
         </div>
       ) : error ? (
-        <Alert variant="destructive" className="mb-4">
-          <span className="text-red-600">⚠️</span>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="p-3 bg-red-100 border border-red-300 rounded-md mb-4 text-red-700">
+          <span className="mr-2">⚠️</span>
+          <span>{error}</span>
+        </div>
       ) : models.length === 0 ? (
         <div className="text-center py-4 text-gray-500">
           利用可能なモデルがありません。Ollamaにモデルをインストールしてください。
@@ -111,33 +108,35 @@ const ModelSelector: React.FC = () => {
               <label htmlFor="model-select" className="block text-sm font-medium text-gray-700 mb-1">
                 利用可能なモデル
               </label>
-              <Select
+              <select
+                id="model-select"
                 value={selectedModel}
-                onValueChange={setSelectedModel}
+                onChange={handleSelectChange}
+                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
               >
-                <SelectTrigger id="model-select" className="w-full">
-                  <SelectValue placeholder="モデルを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((model) => (
-                    <SelectItem key={model.name} value={model.name}>
-                      {model.name} ({formatSize(model.size)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="" disabled>モデルを選択</option>
+                {models.map((model) => (
+                  <option key={model.name} value={model.name}>
+                    {model.name} ({formatSize(model.size)})
+                  </option>
+                ))}
+              </select>
             </div>
             
-            <Button onClick={applySelectedModel} disabled={!selectedModel || applying}>
+            <button
+              onClick={applySelectedModel}
+              disabled={!selectedModel || applying}
+              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {applying ? (
                 <>
-                  <div className="animate-spin h-4 w-4 border-2 border-current rounded-full border-t-transparent mr-2"></div>
+                  <span className="inline-block animate-spin mr-2">⟳</span>
                   適用中...
                 </>
               ) : (
                 '選択したモデルを適用'
               )}
-            </Button>
+            </button>
             
             {success && (
               <div className="flex items-center text-green-600">

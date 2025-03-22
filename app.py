@@ -66,7 +66,15 @@ ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
 
 # llama.cppのパス
 LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
-LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main')
+
+# Windows環境かどうかを確認
+IS_WINDOWS = sys.platform.startswith('win')
+
+# Windows環境では.exe拡張子を追加
+if IS_WINDOWS:
+    LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main.exe')
+else:
+    LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main')
 
 # ファイルアップロード設定
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))

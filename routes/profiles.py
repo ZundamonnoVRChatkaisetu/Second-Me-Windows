@@ -180,6 +180,14 @@ def register_routes(app: Flask):
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
             }), 500
 
+    # フロントエンド互換性のために /activate エンドポイントを追加
+    @app.route('/api/profiles/activate', methods=['POST', 'PUT'])
+    def activate_profile():
+        """
+        プロファイルをアクティブ化するエンドポイント（/select のエイリアス）
+        古いフロントエンドコードとの互換性のために提供
+        """
+        return select_profile()
 
     @app.route('/api/profiles/<profile_id>', methods=['PUT'])
     def update_profile(profile_id):

@@ -11,10 +11,12 @@ import sys
 import json
 import logging
 import requests
+import uuid
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
 
 # 環境変数の読み込み
 load_dotenv()
@@ -43,6 +45,12 @@ MODEL_PATH = os.getenv('MODEL_PATH', '')
 
 # Ollama設定
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+
+# ファイルアップロード設定
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))
+ALLOWED_EXTENSIONS = {'pdf', 'txt', 'doc', 'docx', 'csv', 'json'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB制限
 
 # サーバー起動時間
 START_TIME = datetime.now()
@@ -136,6 +144,114 @@ def add_memory():
     }
     
     return jsonify({'memory': new_memory, 'status': 'success'})
+
+
+def allowed_file(filename):
+    """
+    許可されたファイル拡張子かどうかを確認する
+    """
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """
+    ファイルアップロードエンドポイント
+    multipart/form-dataでファイルとカテゴリを受け取る
+    """
+    logger.info("File upload request received")
+    
+    # アップロードフォルダが存在しなければ作成
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    
+    # カテゴリの取得（デフォルトは'general'）
+    category = request.form.get('category', 'general')
+    category_folder = os.path.join(app.config['UPLOAD_FOLDER'], category)
+    
+    # カテゴリフォルダが存在しなければ作成
+    if not os.path.exists(category_folder):
+        os.makedirs(category_folder)
+    
+    # リクエストにファイルがあるか確認
+    if 'file' not in request.files:
+        logger.error("No file part in the request")
+        return jsonify({
+            'error': 'No file part in the request',
+            'status': 'error'
+        }), 400
+    
+    file = request.files['file']
+    
+    # ファイル名が空でないか確認
+    if file.filename == '':
+        logger.error("No selected file")
+        return jsonify({
+            'error': 'No selected file',
+            'status': 'error'
+        }), 400
+    
+    # ファイルタイプが許可されているか確認
+    if file and allowed_file(file.filename):
+        # 安全なファイル名に変換
+        original_filename = secure_filename(file.filename)
+        # ユニークなファイル名を生成（衝突を避けるため）
+        unique_id = str(uuid.uuid4())
+        filename = f"{unique_id}_{original_filename}"
+        
+        # ファイルを保存
+        file_path = os.path.join(category_folder, filename)
+        file.save(file_path)
+        
+        logger.info(f"File saved successfully: {file_path}")
+        
+        # 成功レスポンス
+        return jsonify({
+            'filename': original_filename,
+            'path': file_path,
+            'category': category,
+            'size': os.path.getsize(file_path),
+            'uploaded_at': datetime.now().isoformat(),
+            'status': 'success'
+        })
+    else:
+        logger.error(f"File type not allowed: {file.filename if file else 'unknown'}")
+        return jsonify({
+            'error': 'File type not allowed',
+            'status': 'error',
+            'allowed_types': list(ALLOWED_EXTENSIONS)
+        }), 400
+
+
+@app.route('/api/files', methods=['GET'])
+def list_files():
+    """
+    アップロードされたファイル一覧を取得するエンドポイント
+    クエリパラメータでカテゴリを指定できる
+    """
+    category = request.args.get('category', 'general')
+    category_folder = os.path.join(app.config['UPLOAD_FOLDER'], category)
+    
+    # カテゴリフォルダが存在しなければ作成
+    if not os.path.exists(category_folder):
+        os.makedirs(category_folder)
+        return jsonify({'files': []})
+    
+    files = []
+    for filename in os.listdir(category_folder):
+        file_path = os.path.join(category_folder, filename)
+        if os.path.isfile(file_path):
+            # ファイル名から元のファイル名を抽出（UUID_元のファイル名の形式）
+            original_filename = '_'.join(filename.split('_')[1:]) if '_' in filename else filename
+            files.append({
+                'filename': original_filename,
+                'path': file_path,
+                'size': os.path.getsize(file_path),
+                'uploaded_at': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+            })
+    
+    return jsonify({'files': files})
 
 
 @app.route('/api/ollama/models', methods=['GET'])

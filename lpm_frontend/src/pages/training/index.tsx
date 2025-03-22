@@ -1,249 +1,195 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../components/Layout';
-import { fetchTrainingData } from '../../lib/api-client';
 import Link from 'next/link';
+import { getTrainingData, deleteTrainingData } from '../../lib/api-client';
+import Layout from '../../components/layout/Layout';
+import { Button } from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/Table';
+import { Badge } from '../../components/ui/Badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/AlertDialog';
+import { Trash2, Plus, FileEdit, Play } from 'lucide-react';
 
-// トレーニングデータ型定義
-interface TrainingData {
-  id: string;
-  name: string;
-  path: string;
-  category: string;
-  size: number;
-  created_at: string;
-  modified_at: string;
-  preview?: string;
-}
-
-// トレーニングデータページコンポーネント
-const TrainingDataPage: React.FC = () => {
+const TrainingPage = () => {
   const router = useRouter();
-  const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [trainingData, setTrainingData] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // トレーニングデータの取得
   useEffect(() => {
-    const loadTrainingData = async () => {
-      try {
-        setLoading(true);
-        const response = await fetchTrainingData(selectedCategory);
-        
-        if (response.training_data) {
-          setTrainingData(response.training_data);
-          setCategories(response.categories || []);
-        } else {
-          setError('トレーニングデータを取得できませんでした');
-        }
-      } catch (err) {
-        console.error('トレーニングデータの取得エラー:', err);
-        setError('トレーニングデータの読み込み中にエラーが発生しました');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadTrainingData();
+    fetchTrainingData();
   }, [selectedCategory]);
 
-  // カテゴリ変更ハンドラ
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedCategory(e.target.value);
-  };
-
-  // 検索語変更ハンドラ
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
-
-  // トレーニングデータのフィルタリング
-  const filteredData = trainingData.filter(item => {
-    if (!searchTerm) return true;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(searchLower) ||
-      item.category.toLowerCase().includes(searchLower) ||
-      (item.preview && item.preview.toLowerCase().includes(searchLower))
-    );
-  });
-
-  // ファイルサイズのフォーマット
-  const formatFileSize = (size: number) => {
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  // 日付のフォーマット
-  const formatDate = (dateString: string) => {
+  const fetchTrainingData = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const date = new Date(dateString);
-      return date.toLocaleString();
-    } catch (e) {
-      return dateString;
-    }
-  };
-
-  // トレーニングデータの削除確認
-  const confirmDelete = (data: TrainingData) => {
-    if (window.confirm(`「${data.name}」を削除してもよろしいですか？`)) {
-      handleDelete(data);
-    }
-  };
-
-  // トレーニングデータの削除処理
-  const handleDelete = async (data: TrainingData) => {
-    try {
-      const response = await fetch(`/api/training/data/${data.id}?path=${encodeURIComponent(data.path)}`, {
-        method: 'DELETE',
-      });
+      const category = selectedCategory === 'all' ? undefined : selectedCategory;
+      const data = await getTrainingData(category);
       
-      if (response.ok) {
-        // 成功したら一覧を更新
-        setTrainingData(prev => prev.filter(item => item.id !== data.id));
-        alert('トレーニングデータを削除しました');
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || '削除中にエラーが発生しました');
-      }
+      setTrainingData(data.items || []);
+      
+      // カテゴリの一覧を取得（重複を排除）
+      const uniqueCategories = Array.from(
+        new Set(data.items.map(item => item.category))
+      ).filter(Boolean);
+      
+      setCategories(uniqueCategories);
     } catch (err) {
-      console.error('削除エラー:', err);
-      setError('削除中にエラーが発生しました');
+      console.error('Failed to fetch training data:', err);
+      setError('トレーニングデータの取得に失敗しました。再度お試しください。');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleDeleteData = async (dataId, path) => {
+    try {
+      await deleteTrainingData(dataId, path);
+      // 削除後にデータを再取得
+      fetchTrainingData();
+    } catch (err) {
+      console.error('Failed to delete training data:', err);
+      setError('トレーニングデータの削除に失敗しました。再度お試しください。');
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
-    <Layout title="トレーニングデータ管理">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">トレーニングデータ管理</h1>
-          <div className="flex space-x-4">
-            <Link href="/training/upload" className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">
-              アップロード
-            </Link>
-            <Link href="/training/process" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
-              トレーニング実行
-            </Link>
-            <Link href="/training/history" className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded">
-              履歴
-            </Link>
+    <Layout>
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">トレーニングデータ管理</h1>
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link href="/training/upload">
+                <Plus className="mr-2 h-4 w-4" />
+                データ追加
+              </Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/training/process">
+                <Play className="mr-2 h-4 w-4" />
+                トレーニング実行
+              </Link>
+            </Button>
           </div>
         </div>
 
-        <div className="mb-6 flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="検索..."
-              className="w-full p-2 border border-gray-300 rounded"
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
-          </div>
-          <div className="w-full md:w-64">
-            <select
-              className="w-full p-2 border border-gray-300 rounded"
-              value={selectedCategory}
-              onChange={handleCategoryChange}
+        <Card>
+          <CardHeader>
+            <CardTitle>トレーニングデータ一覧</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs 
+              defaultValue="all" 
+              value={selectedCategory} 
+              onValueChange={setSelectedCategory}
+              className="mt-2"
             >
-              <option value="">すべてのカテゴリ</option>
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
-            <p className="mt-4">データを読み込んでいます...</p>
-          </div>
-        ) : filteredData.length === 0 ? (
-          <div className="bg-gray-100 p-8 rounded-lg text-center">
-            <p className="text-gray-600">
-              {searchTerm 
-                ? '検索条件に一致するトレーニングデータが見つかりません' 
-                : 'トレーニングデータがありません'
-              }
-            </p>
-            <Link href="/training/upload" className="mt-4 inline-block bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
-              トレーニングデータをアップロード
-            </Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">ファイル名</th>
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">カテゴリ</th>
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">サイズ</th>
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">更新日時</th>
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">プレビュー</th>
-                  <th className="py-2 px-4 border-b border-gray-200 text-left">アクション</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((data) => (
-                  <tr key={data.id} className="hover:bg-gray-50">
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      <span className="font-medium">{data.name}</span>
-                    </td>
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      <span className="inline-block bg-blue-100 text-blue-800 py-1 px-2 rounded-full text-xs">
-                        {data.category}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      {formatFileSize(data.size)}
-                    </td>
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      {formatDate(data.modified_at)}
-                    </td>
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      <div className="text-xs text-gray-600 truncate max-w-xs">
-                        {data.preview || 'プレビューなし'}
-                      </div>
-                    </td>
-                    <td className="py-2 px-4 border-b border-gray-200">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => router.push(`/training/data/${data.id}?path=${encodeURIComponent(data.path)}`)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          表示
-                        </button>
-                        <button
-                          onClick={() => confirmDelete(data)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">すべて</TabsTrigger>
+                {categories.map(category => (
+                  <TabsTrigger key={category} value={category}>
+                    {category}
+                  </TabsTrigger>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </TabsList>
+
+              <TabsContent value={selectedCategory} className="mt-0">
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-40">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  </div>
+                ) : error ? (
+                  <div className="text-center p-4 text-red-500">{error}</div>
+                ) : trainingData.length === 0 ? (
+                  <div className="text-center p-8 text-gray-500">
+                    トレーニングデータがありません。「データ追加」ボタンからデータをアップロードしてください。
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ファイル名</TableHead>
+                          <TableHead>カテゴリ</TableHead>
+                          <TableHead>サイズ</TableHead>
+                          <TableHead>アップロード日時</TableHead>
+                          <TableHead className="w-24">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {trainingData.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.filename}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{item.category || '未分類'}</Badge>
+                            </TableCell>
+                            <TableCell>{formatFileSize(item.size)}</TableCell>
+                            <TableCell>{formatDate(item.created_at)}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" title="削除">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>データ削除の確認</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        本当に「{item.filename}」を削除しますか？この操作は元に戻せません。
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteData(item.id, item.path)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        削除
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
 };
 
-export default TrainingDataPage;
+export default TrainingPage;

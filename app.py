@@ -65,7 +65,7 @@ SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
 ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
 
 # llama.cppのパス
-LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
+LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'llama.cpp', 'build', 'bin', 'Release'))
 
 # Windows環境かどうかを確認
 IS_WINDOWS = sys.platform.startswith('win')

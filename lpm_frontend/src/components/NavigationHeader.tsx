@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { Button } from './ui/Button';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
-import { Settings } from 'lucide-react';
 
 /**
  * アプリケーションのナビゲーションヘッダーコンポーネント
@@ -53,7 +52,7 @@ const NavigationHeader: React.FC = () => {
         <div className="flex items-center space-x-4">
           {/* 設定ページへのリンク */}
           <Link href="/settings" className="text-blue-100 hover:text-white transition-colors">
-            <Settings size={20} />
+            ⚙️ 設定
           </Link>
           
           {/* テーマ切り替えボタン */}

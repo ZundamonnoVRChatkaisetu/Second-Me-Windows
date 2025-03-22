@@ -22,6 +22,11 @@ if exist .env (
     )
 )
 
+:: Export environment variables for the Node.js proxy
+set NODE_ENV=production
+set BACKEND_PORT=%BACKEND_PORT%
+set CORS_PORT=%CORS_PORT%
+
 :: 1. Check if folders exist
 if not exist logs mkdir logs
 if not exist run mkdir run
@@ -86,9 +91,44 @@ echo [6/7] Starting CORS proxy...
 cd lpm_frontend
 
 :: Make sure http-proxy-middleware is installed
-if not exist node_modules\http-proxy-middleware (
-    echo [INFO] Installing http-proxy-middleware...
-    call npm install express http-proxy-middleware
+if not exist node_modules\express (
+    echo [INFO] Installing required dependencies...
+    call npm install express http-proxy-middleware cors
+)
+
+:: Create CORS proxy entry point if it doesn't exist
+if not exist public\cors-anywhere.js (
+    echo [ERROR] CORS proxy script not found!
+    echo Creating a basic CORS proxy script...
+    
+    mkdir public 2>nul
+    
+    echo const express = require('express'); > public\cors-anywhere.js
+    echo const { createProxyMiddleware } = require('http-proxy-middleware'); >> public\cors-anywhere.js
+    echo. >> public\cors-anywhere.js
+    echo const BACKEND_PORT = process.env.BACKEND_PORT || 8002; >> public\cors-anywhere.js
+    echo const CORS_PORT = process.env.CORS_PORT || 8003; >> public\cors-anywhere.js
+    echo. >> public\cors-anywhere.js
+    echo const app = express(); >> public\cors-anywhere.js
+    echo. >> public\cors-anywhere.js
+    echo app.use((req, res, next) =^> { >> public\cors-anywhere.js
+    echo   res.header('Access-Control-Allow-Origin', '*'); >> public\cors-anywhere.js
+    echo   res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS'); >> public\cors-anywhere.js
+    echo   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); >> public\cors-anywhere.js
+    echo   next(); >> public\cors-anywhere.js
+    echo }); >> public\cors-anywhere.js
+    echo. >> public\cors-anywhere.js
+    echo app.use('/', createProxyMiddleware({ >> public\cors-anywhere.js
+    echo   target: `http://localhost:${BACKEND_PORT}`, >> public\cors-anywhere.js
+    echo   changeOrigin: true, >> public\cors-anywhere.js
+    echo   onProxyRes: (proxyRes) =^> { >> public\cors-anywhere.js
+    echo     proxyRes.headers['Access-Control-Allow-Origin'] = '*'; >> public\cors-anywhere.js
+    echo   } >> public\cors-anywhere.js
+    echo })); >> public\cors-anywhere.js
+    echo. >> public\cors-anywhere.js
+    echo app.listen(CORS_PORT, () =^> { >> public\cors-anywhere.js
+    echo   console.log(`CORS Proxy running on port ${CORS_PORT}`); >> public\cors-anywhere.js
+    echo }); >> public\cors-anywhere.js
 )
 
 start "Second-Me CORS Proxy" cmd /k "title Second-Me CORS Proxy && color 5f && echo CORS proxy starting on port %CORS_PORT%... && echo. && node public/cors-anywhere.js"
@@ -112,6 +152,11 @@ echo.
 echo  Backend: http://localhost:%BACKEND_PORT%
 echo  CORS Proxy: http://localhost:%CORS_PORT%
 echo  Frontend: http://localhost:%FRONTEND_PORT%
+echo.
+echo  プロファイル選択に問題がある場合:
+echo  1. バックエンドウィンドウとCORSプロキシウィンドウが実行されていることを確認
+echo  2. CORSプロキシウィンドウにエラーがないことを確認
+echo  3. ブラウザで http://localhost:%CORS_PORT%/api/profiles を開いてみる
 echo.
 echo  To stop all services, close the command windows or run:
 echo  taskkill /f /fi "WINDOWTITLE eq Second-Me*"

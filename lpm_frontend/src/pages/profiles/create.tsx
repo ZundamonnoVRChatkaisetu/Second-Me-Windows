@@ -16,11 +16,17 @@ export default function CreateProfilePage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [purpose, setPurpose] = useState(''); // 追加: 目的フィールド
   const [selectedModelPath, setSelectedModelPath] = useState('');
   const [models, setModels] = useState<Model[]>([]);
+  // パーソナリティ関連のフィールドを追加
+  const [personality, setPersonality] = useState('');
+  const [tone, setTone] = useState('neutral');
+  const [expertise, setExpertise] = useState<string[]>([]);
+  const [customExpertise, setCustomExpertise] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [redirectToChat, setRedirectToChat] = useState(true); // チャットページにリダイレクトするオプション（デフォルトはtrue）
+  const [redirectToChat, setRedirectToChat] = useState(true);
 
   // モデル一覧を取得
   useEffect(() => {
@@ -42,6 +48,55 @@ export default function CreateProfilePage() {
     fetchModels();
   }, []);
 
+  // 専門分野を追加
+  const addExpertise = () => {
+    if (customExpertise.trim() && !expertise.includes(customExpertise.trim())) {
+      setExpertise([...expertise, customExpertise.trim()]);
+      setCustomExpertise('');
+    }
+  };
+
+  // 専門分野を削除
+  const removeExpertise = (item: string) => {
+    setExpertise(expertise.filter(e => e !== item));
+  };
+
+  // パーソナリティからカスタムプロンプトを生成
+  const generateSystemPrompt = (): string => {
+    let prompt = '';
+    
+    // 名前と目的を追加
+    prompt += `あなたは「${name}」という${purpose || '第2の自分'}です。\n\n`;
+    
+    // パーソナリティの説明があれば追加
+    if (personality) {
+      prompt += `${personality}\n\n`;
+    }
+    
+    // 口調の設定を追加
+    const toneMap: { [key: string]: string } = {
+      'formal': '丁寧でフォーマルな口調で話してください。',
+      'casual': 'カジュアルで親しみやすい口調で話してください。',
+      'neutral': '中立的でバランスの取れた口調で話してください。',
+      'enthusiastic': '熱意があり、積極的な口調で話してください。',
+      'professional': 'プロフェッショナルで専門的な口調で話してください。',
+      'humorous': 'ユーモアを交えた明るい口調で話してください。'
+    };
+    
+    if (tone && toneMap[tone]) {
+      prompt += `${toneMap[tone]}\n\n`;
+    }
+    
+    // 専門分野があれば追加
+    if (expertise.length > 0) {
+      prompt += `特に「${expertise.join('」「')}」の分野に詳しく、これらについて質問されたら詳細に答えられます。\n\n`;
+    }
+    
+    prompt += `ユーザーの質問に対して適切かつ有益な応答を提供してください。`;
+    
+    return prompt;
+  };
+
   // プロファイル作成
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,15 +106,34 @@ export default function CreateProfilePage() {
       return;
     }
     
+    if (!purpose.trim()) {
+      setError('目的を入力してください');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
+      
+      // システムプロンプトを生成
+      const systemPrompt = generateSystemPrompt();
       
       // プロファイル作成APIを呼び出し
       const response = await axios.post('/api/profiles/create', {
         name: name.trim(),
         description: description.trim(),
-        model_path: selectedModelPath
+        purpose: purpose.trim(),
+        model_path: selectedModelPath,
+        parameters: {
+          temperature: 0.7,
+          max_tokens: 2048
+        },
+        personality: {
+          description: personality || '',
+          tone: tone || 'neutral',
+          expertise: expertise || [],
+          custom_prompt: systemPrompt
+        }
       });
       
       console.log("プロファイル作成レスポンス:", response.data);
@@ -163,10 +237,27 @@ export default function CreateProfilePage() {
                 <p className="text-xs text-gray-500 mt-1">例：「仕事用アシスタント」「英語学習サポーター」「創作パートナー」など</p>
               </div>
 
+              {/* 目的 - 新規追加 */}
+              <div>
+                <label htmlFor="purpose" className="block text-sm font-medium text-gray-700 mb-1">
+                  目的 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="purpose"
+                  value={purpose}
+                  onChange={(e) => setPurpose(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="この第2の自分の主な目的"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">例：「ビジネス文書作成」「プログラミング学習」「創作アイデア発想」など</p>
+              </div>
+
               {/* 説明 */}
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                  目的・特徴
+                  詳細な説明
                 </label>
                 <textarea
                   id="description"
@@ -174,10 +265,94 @@ export default function CreateProfilePage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="この第2の自分の目的や特徴を書いてみましょう"
+                  placeholder="この第2の自分の特徴や能力、得意分野などを詳しく書いてみましょう"
                 ></textarea>
                 <p className="text-xs text-gray-500 mt-1">
-                  例：「ビジネス文書作成の支援」「プログラミング学習のガイド」「創作アイデアを広げるための対話相手」など
+                  どのような場面で役立つか、どのような性格や特性を持つかなど、詳細に記述するとより特徴的な第2の自分が作れます
+                </p>
+              </div>
+
+              {/* パーソナリティ設定 - 新規追加 */}
+              <div>
+                <label htmlFor="personality" className="block text-sm font-medium text-gray-700 mb-1">
+                  パーソナリティ
+                </label>
+                <textarea
+                  id="personality"
+                  value={personality}
+                  onChange={(e) => setPersonality(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="この第2の自分の性格や特性を詳しく説明してください"
+                ></textarea>
+                <p className="text-xs text-gray-500 mt-1">
+                  例：「論理的思考が得意で、データに基づいた分析を好む。冗談も交えつつ、簡潔に要点を伝えることを心がける」など
+                </p>
+              </div>
+
+              {/* 口調の設定 - 新規追加 */}
+              <div>
+                <label htmlFor="tone" className="block text-sm font-medium text-gray-700 mb-1">
+                  コミュニケーションスタイル
+                </label>
+                <select
+                  id="tone"
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="neutral">中立的 (標準)</option>
+                  <option value="formal">丁寧・フォーマル</option>
+                  <option value="casual">カジュアル・親しみやすい</option>
+                  <option value="enthusiastic">熱意あり・積極的</option>
+                  <option value="professional">プロフェッショナル・専門的</option>
+                  <option value="humorous">ユーモア・明るい</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">この第2の自分が使う言葉遣いや話し方の特徴を選択します</p>
+              </div>
+
+              {/* 専門分野 - 新規追加 */}
+              <div>
+                <label htmlFor="expertise" className="block text-sm font-medium text-gray-700 mb-1">
+                  専門分野・得意分野
+                </label>
+                <div className="flex space-x-2 mb-2">
+                  <input
+                    type="text"
+                    id="expertise"
+                    value={customExpertise}
+                    onChange={(e) => setCustomExpertise(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="追加したい専門分野を入力"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addExpertise}
+                    disabled={!customExpertise.trim()}
+                    className="whitespace-nowrap"
+                  >
+                    追加
+                  </Button>
+                </div>
+                
+                {expertise.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {expertise.map((item, index) => (
+                      <div key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center">
+                        {item}
+                        <button
+                          type="button"
+                          onClick={() => removeExpertise(item)}
+                          className="ml-2 text-blue-600 hover:text-blue-800 focus:outline-none"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  この第2の自分が特に詳しい分野や得意とする話題を追加します
                 </p>
               </div>
 
@@ -232,7 +407,7 @@ export default function CreateProfilePage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={loading || !name.trim() || models.length === 0}
+                  disabled={loading || !name.trim() || !purpose.trim() || models.length === 0}
                   className="px-6 py-2"
                 >
                   {loading ? '作成中...' : '第2の自分を作成する'}

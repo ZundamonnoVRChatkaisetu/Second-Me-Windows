@@ -34,3 +34,8 @@
   - 一時スクリプトファイルを使用してPowerShellコマンドを実行する方式に変更
   - ディレクトリ移動時のエラーハンドリングを強化
   - 全体的なエラー処理を改善
+- 2025-03-22: セットアップ後、start.bat実行時にフロントエンド依存関係のエラーが発生
+  - `[ERROR] Frontend dependencies not installed. Please run 'scripts\setup.bat' first.`
+  - 修正: start.batを更新し、フロントエンド依存関係が見つからない場合に自動的にインストールする機能を追加（v1.0.1）
+  - setup.batでフロントエンド依存関係のインストールがスキップされた場合の回復機能として実装
+  - llama.cppのビルド確認チェックを追加

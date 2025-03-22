@@ -3,123 +3,123 @@ setlocal
 
 echo.
 echo  ================================================
-echo    Second-Me Windows パーミッション修復ツール
+echo    Second-Me Windows System Repair Tool
 echo  ================================================
 echo.
-echo このスクリプトはディレクトリとファイルの権限を修正し、
-echo ポート競合の確認とプロセスのクリーンアップを行います。
+echo This script repairs directories and file permissions,
+echo checks for port conflicts, and cleans up processes.
 echo.
-echo 1. ログディレクトリの作成確認
-echo 2. バックエンドプロセスのクリーンアップ
-echo 3. ポート競合のチェックと解決
+echo 1. Check log directories
+echo 2. Clean up backend processes
+echo 3. Check for port conflicts
 echo.
 
-:: 管理者権限の確認
+:: Admin check
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [警告] このスクリプトは管理者権限なしで実行されています。
-    echo        一部の操作は制限される可能性があります。
+    echo [WARNING] This script is running without administrator privileges.
+    echo           Some operations may be limited.
     echo.
     pause
 )
 
-:: ログディレクトリの権限修正
-echo [実行] ログディレクトリの確認...
+:: Fix log directory permissions
+echo [RUNNING] Checking logs directory...
 if not exist logs (
     mkdir logs
-    echo [情報] logsディレクトリを作成しました。
+    echo [INFO] Created logs directory.
 ) else (
-    echo [情報] logsディレクトリは既に存在します。
+    echo [INFO] Logs directory already exists.
 )
 
-:: runディレクトリの権限修正
-echo [実行] runディレクトリの確認...
+:: Fix run directory permissions
+echo [RUNNING] Checking run directory...
 if not exist run (
     mkdir run
-    echo [情報] runディレクトリを作成しました。
+    echo [INFO] Created run directory.
 ) else (
-    echo [情報] runディレクトリは既に存在します。
+    echo [INFO] Run directory already exists.
 )
 
-:: バックエンドプロセスのクリーンアップ
-echo [実行] バックエンドプロセスのクリーンアップ...
+:: Clean up backend processes
+echo [RUNNING] Cleaning up backend processes...
 taskkill /f /fi "WINDOWTITLE eq Second-Me Backend" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [情報] バックエンドプロセスを終了しました。
+    echo [INFO] Terminated backend processes.
 ) else (
-    echo [情報] 実行中のバックエンドプロセスはありませんでした。
+    echo [INFO] No running backend processes found.
 )
 
-:: フロントエンドプロセスのクリーンアップ
-echo [実行] フロントエンドプロセスのクリーンアップ...
+:: Clean up frontend processes
+echo [RUNNING] Cleaning up frontend processes...
 taskkill /f /fi "WINDOWTITLE eq Second-Me Frontend" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [情報] フロントエンドプロセスを終了しました。
+    echo [INFO] Terminated frontend processes.
 ) else (
-    echo [情報] 実行中のフロントエンドプロセスはありませんでした。
+    echo [INFO] No running frontend processes found.
 )
 
-:: PID ファイルの削除
-echo [実行] PIDファイルの削除...
+:: Delete PID files
+echo [RUNNING] Deleting PID files...
 if exist run\.backend.pid del /f run\.backend.pid
 if exist run\.frontend.pid del /f run\.frontend.pid
 
-:: ポート競合チェック
-echo [実行] ポート競合のチェック...
+:: Check port conflicts
+echo [RUNNING] Checking for port conflicts...
 
-:: 8002ポートのチェック
-echo [実行] バックエンドポート (8002) のチェック...
+:: Check backend port
+echo [RUNNING] Checking backend port (8002)...
 netstat -ano | findstr ":8002" | findstr "LISTENING" >nul
 if %errorlevel% equ 0 (
-    echo [警告] ポート 8002 は既に使用されています。
-    echo        ポートを開放しますか？ (Y/N)
+    echo [WARNING] Port 8002 is already in use.
+    echo           Do you want to free this port? (Y/N)
     choice /c YN
     if !errorlevel! equ 1 (
         for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8002" ^| findstr "LISTENING"') do (
-            echo [実行] PID %%a のプロセスを終了しています...
+            echo [RUNNING] Terminating process with PID %%a...
             taskkill /f /pid %%a >nul 2>&1
             if !errorlevel! equ 0 (
-                echo [情報] ポート 8002 を開放しました。
+                echo [INFO] Port 8002 has been freed.
             ) else (
-                echo [エラー] プロセスの終了に失敗しました。管理者権限で再実行してください。
+                echo [ERROR] Failed to terminate process. Try running as administrator.
             )
         )
     )
 ) else (
-    echo [情報] ポート 8002 は利用可能です。
+    echo [INFO] Port 8002 is available.
 )
 
-:: 3000ポートのチェック
-echo [実行] フロントエンドポート (3000) のチェック...
+:: Check frontend port
+echo [RUNNING] Checking frontend port (3000)...
 netstat -ano | findstr ":3000" | findstr "LISTENING" >nul
 if %errorlevel% equ 0 (
-    echo [警告] ポート 3000 は既に使用されています。
-    echo        ポートを開放しますか？ (Y/N)
+    echo [WARNING] Port 3000 is already in use.
+    echo           Do you want to free this port? (Y/N)
     choice /c YN
     if !errorlevel! equ 1 (
         for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
-            echo [実行] PID %%a のプロセスを終了しています...
+            echo [RUNNING] Terminating process with PID %%a...
             taskkill /f /pid %%a >nul 2>&1
             if !errorlevel! equ 0 (
-                echo [情報] ポート 3000 を開放しました。
+                echo [INFO] Port 3000 has been freed.
             ) else (
-                echo [エラー] プロセスの終了に失敗しました。管理者権限で再実行してください。
+                echo [ERROR] Failed to terminate process. Try running as administrator.
             )
         )
     )
 ) else (
-    echo [情報] ポート 3000 は利用可能です。
+    echo [INFO] Port 3000 is available.
 )
 
 echo.
-echo [実行] セットアップが完了しました。
-echo        次のコマンドでフォアグラウンドモードでアプリケーションを起動できます：
+echo [RUNNING] Setup is complete.
+echo          You can now run the application in foreground mode:
 echo.
-echo        バックエンド: foreground-backend.bat
-echo        フロントエンド: foreground-frontend.bat
+echo          Backend: foreground-backend.bat
+echo          Frontend: foreground-frontend.bat
 echo.
-echo        または通常モードで起動：
-echo        scripts\start.bat --skip-health-check
+echo          Or start in normal mode:
+echo          scripts\start.bat --skip-health-check
 echo.
 
 pause

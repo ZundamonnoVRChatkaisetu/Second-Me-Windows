@@ -55,16 +55,34 @@ export default function CreateProfilePage() {
       setLoading(true);
       setError(null);
       
+      // プロファイル作成APIを呼び出し
       const response = await axios.post('/api/profiles/create', {
         name: name.trim(),
         description: description.trim(),
         model_path: selectedModelPath
       });
       
-      // 作成したプロファイルをアクティブにする
-      await axios.post('/api/profiles/activate', {
-        profile_id: response.data.profile_id
-      });
+      console.log("プロファイル作成レスポンス:", response.data);
+      
+      // レスポンスからプロファイルIDを取得
+      const profileId = response.data.profile?.id;
+      
+      // プロファイルIDが存在する場合のみアクティブ化を試みる
+      if (profileId) {
+        try {
+          // 作成したプロファイルをアクティブにする
+          await axios.post('/api/profiles/activate', {
+            profile_id: profileId
+          });
+          console.log("プロファイルのアクティブ化に成功:", profileId);
+        } catch (activateErr: any) {
+          console.error('Failed to activate profile:', activateErr);
+          console.log("アクティブ化エラーのレスポンス:", activateErr.response?.data);
+          // アクティブ化に失敗してもプロファイル作成は成功しているので、エラーとして扱わない
+        }
+      } else {
+        console.warn("プロファイルIDが見つかりません。レスポンス:", response.data);
+      }
       
       // 成功したら、選択した遷移先にリダイレクト
       if (redirectToChat) {

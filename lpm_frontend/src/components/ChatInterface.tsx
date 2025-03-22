@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Button } from './ui/Button';
+import LlamaCppSetupGuide from './LlamaCppSetupGuide';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,6 +20,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // チャット履歴が更新されたら自動スクロール
@@ -41,6 +43,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     try {
       // APIリクエスト
       const response = await axios.post('/api/chat', { message: userMessage.content });
+      
+      // llama.cppセットアップエラーのチェック
+      if (response.data.message.includes("llama.cpp実行ファイルが見つかりません")) {
+        setSetupError("llama.cpp実行ファイルが見つかりません");
+      }
       
       // AIの応答をチャット履歴に追加
       setChatHistory((prev) => [
@@ -68,6 +75,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       handleSendMessage();
     }
   };
+
+  // llama.cppセットアップエラーが発生した場合はセットアップガイドを表示
+  if (setupError) {
+    return <LlamaCppSetupGuide />;
+  }
 
   return (
     <div className={`flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-md ${className}`}>

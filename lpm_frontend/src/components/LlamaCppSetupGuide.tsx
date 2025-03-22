@@ -13,7 +13,7 @@ const LlamaCppSetupGuide: React.FC = () => {
       
       <div className="prose dark:prose-invert max-w-none">
         <p className="text-red-600 font-medium mb-4">
-          llama.cppの実行ファイル(main.exe)が見つからないため、チャット機能を利用できません。
+          llama.cppの実行ファイル(llama-server.exe)が見つからないため、チャット機能を利用できません。
           以下の手順に従ってセットアップを完了してください。
         </p>
         
@@ -35,7 +35,7 @@ const LlamaCppSetupGuide: React.FC = () => {
                 から最新のWindows用ビルド済みバイナリ（通常は <code>llama-*-bin-win-x64.zip</code> というファイル名）をダウンロード
               </li>
               <li>ダウンロードしたZIPファイルを解凍</li>
-              <li>解凍したフォルダ内の <code>main.exe</code> を <code>dependencies/llama.cpp/</code> フォルダ内にコピー</li>
+              <li>解凍したフォルダ内の <code>llama-server.exe</code> を <code>dependencies/llama.cpp/</code> フォルダ内にコピー</li>
             </ul>
           </li>
           
@@ -63,8 +63,8 @@ const LlamaCppSetupGuide: React.FC = () => {
                   cmake --build . --config Release
                 </code>
               </pre>
-              <li>ビルドが完了すると <code>build/Release/main.exe</code> が生成されます</li>
-              <li>この <code>main.exe</code> を <code>dependencies/llama.cpp/</code> フォルダ内にコピー</li>
+              <li>ビルドが完了すると <code>build/bin/Release/llama-server.exe</code> が生成されます</li>
+              <li>この <code>llama-server.exe</code> を <code>dependencies/llama.cpp/</code> フォルダ内にコピー</li>
             </ul>
           </li>
         </ol>
@@ -76,7 +76,7 @@ const LlamaCppSetupGuide: React.FC = () => {
             Second-Me-Windows/<br />
             ├── dependencies/<br />
             │   ├── llama.cpp/<br />
-            │   │   ├── main.exe  &lt;-- このファイルが必要<br />
+            │   │   ├── llama-server.exe  &lt;-- このファイルが必要<br />
             │   │   └── ... (その他のファイル)<br />
             │   └── ... (その他のディレクトリ)<br />
             └── ... (その他のファイル)
@@ -89,6 +89,7 @@ const LlamaCppSetupGuide: React.FC = () => {
             <li>ディレクトリ名とファイル名は大文字小文字を区別します</li>
             <li>使用するモデルは <code>models/</code> ディレクトリに配置してください</li>
             <li>GPUアクセラレーションを利用する場合は、CUDAまたはDirectML対応のllama.cppビルドが必要です</li>
+            <li>Windows環境では <code>main.exe</code> ではなく <code>llama-server.exe</code> が必要です</li>
           </ul>
         </div>
       </div>

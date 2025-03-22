@@ -26,8 +26,9 @@ const StepCard: React.FC<StepCardProps> = ({ number, title, description, imageSr
             <Image 
               src={imageSrc} 
               alt={`Step ${number}`}
-              layout="fill"
-              objectFit="cover"
+              fill
+              style={{ objectFit: 'cover' }}
+              priority={number <= 2}
             />
           ) : (
             <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">

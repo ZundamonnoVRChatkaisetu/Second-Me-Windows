@@ -1,6 +1,43 @@
 # Second-Me-Windows 進捗状況
 
-## 2025年3月23日の作業
+## 2025年3月23日の作業（更新2）
+
+### llama.cppパスの修正
+1. **llama-server.exe検出問題**
+   - 現状: アプリケーションが`llama-server.exe`を`dependencies/llama.cpp`内で検索していた
+   - 原因: app.py内のLLAMACPP_PATHが間違った場所を指定していた
+   - 解決: LLAMACPP_PATHを正しいパス（`llama.cpp/build/bin/Release`）に修正
+
+### 修正内容
+1. **app.py変更**
+   ```python
+   # 修正前
+   LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
+   
+   # 修正後
+   LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'llama.cpp', 'build', 'bin', 'Release'))
+   ```
+
+### 動作確認方法
+1. **ログの確認**
+   - アプリケーション起動時のログメッセージを確認
+   - 「llama.cpp executable found at ...」メッセージが表示されていれば成功
+
+2. **チャット機能**
+   - `start-new-ui.bat`を実行
+   - ブラウザで`http://localhost:3000/chat`にアクセス
+   - メッセージを入力して送信
+   - 正常に応答が返ってくることを確認
+
+### 今後の課題
+1. **llama-server.exeの自動起動**
+   - 現在はユーザーが手動でllama-server.exeを起動する必要がある
+   - 将来的にはバックエンドから自動的に起動できるよう改善する
+
+2. **環境変数による柔軟な設定**
+   - ユーザーが独自のパスを.envファイルで簡単に設定できるようにする
+
+## 2025年3月23日の作業（更新1）
 
 ### 問題の特定と解決
 1. **チャット機能の問題**

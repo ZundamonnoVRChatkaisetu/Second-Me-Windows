@@ -51,10 +51,28 @@ export default function ProfileWizardPage() {
       // プロファイル作成APIを呼び出し
       const response = await axios.post('/api/profiles/create', profileData);
       
-      // 作成したプロファイルをアクティブにする
-      await axios.post('/api/profiles/activate', {
-        profile_id: response.data.profile_id
-      });
+      // レスポンスからプロファイルIDを取得
+      // バックエンドから返されるレスポンス形式に合わせて適切なパスを使用
+      const profileId = response.data.profile?.id;
+      
+      console.log("プロファイル作成レスポンス:", response.data);
+      
+      // プロファイルIDが存在する場合のみアクティブ化を試みる
+      if (profileId) {
+        try {
+          // 作成したプロファイルをアクティブにする
+          await axios.post('/api/profiles/activate', {
+            profile_id: profileId
+          });
+          console.log("プロファイルのアクティブ化に成功:", profileId);
+        } catch (activateErr: any) {
+          console.error('Failed to activate profile:', activateErr);
+          console.log("アクティブ化エラーのレスポンス:", activateErr.response?.data);
+          // アクティブ化に失敗してもプロファイル作成は成功しているので、エラーとして扱わない
+        }
+      } else {
+        console.warn("プロファイルIDが見つかりません。レスポンス:", response.data);
+      }
       
       // リダイレクト先を決定
       if (formData.redirectToChat) {

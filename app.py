@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import logging
+import requests
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -40,11 +41,15 @@ PORT = int(os.getenv('LOCAL_APP_PORT', 8002))
 # モデルパス
 MODEL_PATH = os.getenv('MODEL_PATH', '')
 
+# Ollama設定
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+
 # サーバー起動時間
 START_TIME = datetime.now()
 
 
 @app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])  # フロントエンドの期待するエンドポイントを追加
 def health_check():
     """ヘルスチェックエンドポイント"""
     uptime = (datetime.now() - START_TIME).total_seconds()
@@ -133,6 +138,62 @@ def add_memory():
     return jsonify({'memory': new_memory, 'status': 'success'})
 
 
+@app.route('/api/ollama/models', methods=['GET'])
+def get_ollama_models():
+    """Ollamaから利用可能なモデルの一覧を取得するエンドポイント"""
+    try:
+        # Ollamaのモデル一覧APIを呼び出し
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags")
+        
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            # モデル情報を整形
+            formatted_models = [
+                {
+                    'name': model.get('name'),
+                    'size': model.get('size'),
+                    'modified_at': model.get('modified_at'),
+                    'details': model.get('details', {})
+                }
+                for model in models
+            ]
+            return jsonify({'models': formatted_models})
+        else:
+            logger.error(f"Failed to get models from Ollama: {response.status_code} - {response.text}")
+            return jsonify({'error': 'Failed to get models from Ollama', 'models': []}), 500
+    except Exception as e:
+        logger.exception(f"Error while fetching Ollama models: {str(e)}")
+        return jsonify({'error': str(e), 'models': []}), 500
+
+
+@app.route('/api/ollama/set-model', methods=['POST'])
+def set_ollama_model():
+    """使用するOllamaモデルを設定するエンドポイント"""
+    try:
+        data = request.json
+        model_name = data.get('model_name')
+        
+        if not model_name:
+            return jsonify({'error': 'Model name is required'}), 400
+        
+        # ここでモデル名を保存または設定
+        # この例では環境変数に設定しているが、実際の実装では
+        # 設定ファイルやデータベースに保存するか、メモリに保持する
+        global MODEL_PATH
+        MODEL_PATH = model_name
+        
+        logger.info(f"Set Ollama model to: {model_name}")
+        
+        return jsonify({
+            'status': 'success',
+            'model_name': model_name,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.exception(f"Error while setting Ollama model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # ディレクトリ存在確認
     if not os.path.exists('logs'):
@@ -148,6 +209,17 @@ if __name__ == '__main__':
             logger.warning(f"Model not found at {MODEL_PATH}")
     else:
         logger.warning("MODEL_PATH not set, chat functionality will be limited")
+    
+    # Ollamaが利用可能か確認
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags")
+        if response.status_code == 200:
+            available_models = [model.get('name') for model in response.json().get('models', [])]
+            logger.info(f"Ollama available models: {', '.join(available_models)}")
+        else:
+            logger.warning(f"Ollama API returned status code: {response.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not connect to Ollama API: {str(e)}")
     
     # Flaskアプリケーション起動
     app.run(host='0.0.0.0', port=PORT, debug=False)

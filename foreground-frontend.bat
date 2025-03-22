@@ -13,42 +13,42 @@ if exist .env (
 
 echo.
 echo  ================================================
-echo    Second-Me Windows フロントエンド（フォアグラウンド）
+echo    Second-Me Windows Frontend (Foreground Mode)
 echo  ================================================
 echo.
-echo このウィンドウではフロントエンドを直接実行します。
-echo 別の新しいウィンドウでバックエンドを起動してください。
+echo This window will run the frontend directly in this console.
+echo Please start the backend in a separate window.
 echo.
-echo バックエンド起動コマンド:
+echo Backend startup command:
 echo   foreground-backend.bat
 echo.
-echo フロントエンドを起動中...
+echo Starting frontend...
 echo ---------------------------------------------------
 echo.
 
-:: ディレクトリ確認
+:: Check directory
 if not exist lpm_frontend (
-    echo [ERROR] lpm_frontendディレクトリが見つかりません。
+    echo [ERROR] lpm_frontend directory not found.
     exit /b 1
 )
 
-:: フロントエンドディレクトリに移動
+:: Change to frontend directory
 cd lpm_frontend
 
-:: 依存関係を確認
+:: Check dependencies
 if not exist node_modules (
-    echo node_modulesが見つかりません。依存関係をインストールします...
+    echo node_modules not found. Installing dependencies...
     npm install
     if %errorlevel% neq 0 (
-        echo [ERROR] npmインストールに失敗しました。
+        echo [ERROR] npm install failed.
         cd ..
         exit /b 1
     )
 )
 
-:: フロントエンドを起動（フォアグラウンドで）
+:: Start frontend (in foreground)
 npm run dev
 
-:: ここには通常到達しないが、念のため
+:: Should not normally reach here
 cd ..
 pause

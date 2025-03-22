@@ -5,10 +5,11 @@ from flask import Flask
 def register_routes(app: Flask):
     """各ルートモジュールをFlaskアプリケーションに登録する"""
     # 各ルートモジュールをインポート
-    from routes import health, models, profiles, chat, memory, workspace, training, upload
+    from routes import health, models, profiles, chat, memory, workspace, training, upload, llama_server
     
     # 各モジュールのregister_routes関数を呼び出す
     health.register_routes(app)
+    llama_server.register_routes(app)
     models.register_routes(app)
     profiles.register_routes(app)
     chat.register_routes(app)

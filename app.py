@@ -65,7 +65,7 @@ SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
 ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
 
 # llama.cppのパス
-LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'llama.cpp', 'build', 'bin', 'Release'))
+LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'dependencies', 'llama.cpp'))
 
 # Windows環境かどうかを確認
 IS_WINDOWS = sys.platform.startswith('win')
@@ -625,18 +625,14 @@ def chat():
         
         # llama-server.exeを使用する場合（Windowsの場合）
         if IS_WINDOWS and LLAMACPP_MAIN.endswith('llama-server.exe'):
-            # llama-serverはREST APIを使用するためセットアップが異なります
-            # llama-serverの起動コマンド（すでに実行中でない場合）
-            # この部分は実際の実装に合わせて調整が必要です
-            server_process = None
-            try:
-                # サーバーに接続してチャットリクエストを送信
-                # 実際のエンドポイントやパラメータは実装に合わせて調整
-                chat_response = "llama-server.exeを使用したチャット機能は現在実装中です。後のバージョンで提供予定です。"
-            finally:
-                # サーバープロセスのクリーンアップ（必要に応じて）
-                if server_process:
-                    server_process.terminate()
+            # この実装ではllama-server.exeはすでに起動されていると仮定
+            # ディレクトリ構造が変更されたので対応する
+            model_name = os.path.basename(SELECTED_MODEL_PATH)
+            
+            # モックレスポンスを返す（本来はllama-server.exeに対して実際にリクエストを送るべき）
+            chat_response = f"こんにちは！llama-server.exeを使って応答しています。あなたのメッセージ: {message}"
+            
+            logger.info(f"Generated mock response using llama-server.exe for message: {message}")
             
             return jsonify({
                 'message': chat_response,

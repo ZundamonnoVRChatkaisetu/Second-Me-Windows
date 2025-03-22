@@ -6,7 +6,7 @@ echo ================================================
 echo.
 
 echo Installing required dependencies...
-call npm install clsx class-variance-authority tailwind-merge --save
+call npm install clsx class-variance-authority tailwind-merge framer-motion --save
 
 echo.
 echo Updating package.json...

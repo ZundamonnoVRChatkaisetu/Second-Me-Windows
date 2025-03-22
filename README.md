@@ -39,7 +39,7 @@ AIネイティブメモリを使用して、Second Meで今すぐあなた自身
 - CMake 3.21以上
 
 #### Visual Studioのインストール
-Visual Studioをまだインストールしていない場合は、Visual Studio Communityをインストールし、「C++によるデスクトップ開発」ワークロードを選択してください。
+Visual Studioをまだインストールしていない場合は、Visual Studio Communityをインストールし、「**C++によるデスクトップ開発**」ワークロードを選択してください。
 
 #### CMakeのインストール
 CMakeがインストールされていない場合は、[公式サイト](https://cmake.org/download/)からダウンロードしてインストールできます。
@@ -76,8 +76,49 @@ scripts\start.bat
 scripts\help.bat
 ```
 
+## 日本語環境での注意事項
+
+日本語版Windowsで文字化けやエラーが発生する場合は、以下の点に注意してください：
+
+1. **コマンドプロンプトの文字コード** - Windows標準のコマンドプロンプトを使用する場合、文字コードの問題が生じる可能性があります。PowerShellの使用をお勧めします。
+
+2. **スクリプトの実行ポリシー** - PowerShellでスクリプトを実行する場合、実行ポリシーの設定が必要な場合があります。管理者権限でPowerShellを開き、以下を実行してください：
+   ```powershell
+   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+3. **パスの問題** - 日本語を含むパスでの動作に問題がある場合は、英語のみのパスにプロジェクトを配置してください。
+
+4. **環境変数の設定** - システム環境変数`PYTHONIOENCODING=utf-8`を設定すると、Pythonの出力の文字化けを防ぐことができます。
+
 ## チュートリアル
 - [ユーザーチュートリアル](https://second-me.gitbook.io/a-new-ai-species-making-we-matter-again)に従って、あなた自身のSecond Meを構築できます。
+
+## よくある問題と解決方法
+
+### セットアップ時のエラー
+
+1. **「Python is not installed or not in PATH」エラー**
+   - Python 3.10以上がインストールされ、PATHに追加されていることを確認してください。
+
+2. **「Visual C++ compiler not found」エラー**
+   - Visual Studioが正しくインストールされていることを確認してください。「C++によるデスクトップ開発」ワークロードが必要です。
+
+3. **「CMake is not installed or not in PATH」エラー**
+   - CMakeがインストールされ、PATHに追加されていることを確認してください。
+
+4. **llama.cppのビルドエラー**
+   - 詳細については `docs/llama_cpp_windows.md` を参照してください。Visual Studio開発者コマンドプロンプトからの実行が推奨される場合があります。
+
+### 起動時のエラー
+
+1. **「Conda environment not found」エラー**
+   - セットアップが完了していることを確認してください。
+   - コマンドプロンプトを再起動して再試行してください。
+
+2. **ポートが既に使用されているエラー**
+   - 指定されたポート（デフォルトでは3000および8002）が他のアプリケーションで使用されていないことを確認してください。
+   - `.env`ファイルでポート設定を変更できます。
 
 ## 貢献
 

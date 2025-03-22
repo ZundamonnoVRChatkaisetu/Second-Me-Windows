@@ -7,12 +7,14 @@ Second Me Windows バックエンドアプリケーション
 """
 
 import os
+import json
 from flask import Flask
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+import config
 from config import (
     logger, PORT, MODELS_DIR, PROFILES_DIR, UPLOAD_FOLDER, WORKSPACE_DIR,
-    SELECTED_MODEL_PATH, LLAMACPP_MAIN, START_TIME, log_level
+    SELECTED_MODEL_PATH, ACTIVE_PROFILE, LLAMACPP_MAIN, START_TIME, log_level
 )
 from routes import register_routes
 
@@ -53,9 +55,9 @@ if __name__ == '__main__':
             
             # 選択されたモデルが設定されていなければ、最初のモデルを選択
             if not SELECTED_MODEL_PATH:
-                from config import SELECTED_MODEL_PATH
-                SELECTED_MODEL_PATH = os.path.join(MODELS_DIR, model_files[0])
-                logger.info(f"Auto-selected model: {SELECTED_MODEL_PATH}")
+                # グローバル変数の SELECTED_MODEL_PATH を更新
+                config.SELECTED_MODEL_PATH = os.path.join(MODELS_DIR, model_files[0])
+                logger.info(f"Auto-selected model: {config.SELECTED_MODEL_PATH}")
         else:
             logger.warning(f"No model files found in {MODELS_DIR}")
     except Exception as e:
@@ -75,20 +77,19 @@ if __name__ == '__main__':
             logger.info(f"Found {len(profiles)} profiles")
             
             # アクティブなプロファイルが設定されていなければ、最初のプロファイルを選択
-            if not config.ACTIVE_PROFILE:
-                from config import ACTIVE_PROFILE
-                ACTIVE_PROFILE = profiles[0]
-                logger.info(f"Auto-selected profile: {ACTIVE_PROFILE}")
+            if not ACTIVE_PROFILE:
+                # グローバル変数の ACTIVE_PROFILE を更新
+                config.ACTIVE_PROFILE = profiles[0]
+                logger.info(f"Auto-selected profile: {config.ACTIVE_PROFILE}")
                 
                 # プロファイルのモデルも選択
                 try:
-                    with open(os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json'), 'r', encoding='utf-8') as f:
-                        import json
+                    with open(os.path.join(PROFILES_DIR, config.ACTIVE_PROFILE, 'config.json'), 'r', encoding='utf-8') as f:
                         config_data = json.load(f)
                     model_path = config_data.get('model_path', '')
                     if model_path and os.path.exists(model_path):
-                        SELECTED_MODEL_PATH = model_path
-                        logger.info(f"Using profile's model: {SELECTED_MODEL_PATH}")
+                        config.SELECTED_MODEL_PATH = model_path
+                        logger.info(f"Using profile's model: {config.SELECTED_MODEL_PATH}")
                 except Exception as e:
                     logger.error(f"Failed to load profile config: {str(e)}")
         else:

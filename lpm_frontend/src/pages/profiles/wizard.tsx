@@ -17,6 +17,12 @@ export default function ProfileWizardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({});  // フォームデータを親コンポーネントでも管理
+
+  // フォームデータを更新する関数
+  const updateWizardFormData = (data: any) => {
+    setFormData(prevData => ({ ...prevData, ...data }));
+  };
 
   // プロファイル作成処理
   const handleCreateProfile = async (formData: any) => {
@@ -128,23 +134,23 @@ export default function ProfileWizardPage() {
   const wizardSteps = [
     {
       title: '基本情報',
-      component: <BasicInfoStep />,
-      validate: () => validateBasicInfo({}),
+      component: <BasicInfoStep formData={formData} updateFormData={updateWizardFormData} />,
+      validate: () => validateBasicInfo(formData),
     },
     {
       title: 'モデル選択',
-      component: <ModelSelectionStep />,
-      validate: () => validateModelSelection({}),
+      component: <ModelSelectionStep formData={formData} updateFormData={updateWizardFormData} />,
+      validate: () => validateModelSelection(formData),
     },
     {
       title: 'パーソナリティ',
-      component: <PersonalityStep />,
-      validate: () => validatePersonality({}),
+      component: <PersonalityStep formData={formData} updateFormData={updateWizardFormData} />,
+      validate: () => validatePersonality(formData),
     },
     {
       title: '完了',
-      component: <CompleteStep />,
-      validate: () => validateComplete({}),
+      component: <CompleteStep formData={formData} updateFormData={updateWizardFormData} />,
+      validate: () => validateComplete(formData),
     }
   ];
 
@@ -174,6 +180,8 @@ export default function ProfileWizardPage() {
               submitButtonText={loading ? '作成中...' : '第2の自分を作成する'}
               cancelButtonText="キャンセル"
               onCancel={() => router.push('/profiles')}
+              formData={formData}
+              updateFormData={updateWizardFormData}
             />
           </div>
         </div>

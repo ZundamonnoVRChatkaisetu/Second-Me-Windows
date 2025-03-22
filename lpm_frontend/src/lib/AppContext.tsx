@@ -1,5 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
 import { checkBackendHealth } from './api-client';
+
+// プロファイルの型定義
+export interface Profile {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  model_path?: string;
+  training_count?: number;
+  memories_count?: number;
+  has_workspace?: boolean;
+  active: boolean;
+}
 
 // アプリケーション全体の共有状態の型定義
 interface AppState {
@@ -9,6 +24,13 @@ interface AppState {
   user: {
     name: string;
     initialized: boolean;
+  };
+  // プロファイル情報
+  profiles: {
+    all: Profile[];
+    active: Profile | null;
+    loading: boolean;
+    error: string | null;
   };
   // アップロードされたファイル
   uploadedFiles: string[];
@@ -39,6 +61,9 @@ interface AppContextType extends AppState {
   updateUser: (name: string) => void;
   // 初期化状態を更新
   setInitialized: (initialized: boolean) => void;
+  // プロファイル関連の操作
+  fetchProfiles: () => Promise<void>;
+  activateProfile: (profileId: string) => Promise<boolean>;
   // ファイルリストを更新
   addUploadedFile: (fileName: string) => void;
   clearUploadedFiles: () => void;
@@ -61,6 +86,12 @@ const defaultState: AppState = {
   user: {
     name: '',
     initialized: false
+  },
+  profiles: {
+    all: [],
+    active: null,
+    loading: false,
+    error: null
   },
   uploadedFiles: [],
   training: {
@@ -105,6 +136,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       try {
         const isConnected = await checkBackendHealth();
         setState(prev => ({ ...prev, backendConnected: isConnected }));
+        
+        // バックエンド接続が確立されたらプロファイル情報を取得
+        if (isConnected) {
+          fetchProfiles();
+        }
       } catch (error) {
         setState(prev => ({ 
           ...prev, 
@@ -159,6 +195,70 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
     }
   }, []);
+
+  // プロファイル一覧を取得する関数
+  const fetchProfiles = async () => {
+    try {
+      setState(prev => ({
+        ...prev,
+        profiles: {
+          ...prev.profiles,
+          loading: true,
+          error: null
+        }
+      }));
+
+      const response = await axios.get('/api/profiles');
+      const profiles = response.data.profiles || [];
+      const activeProfile = profiles.find((p: Profile) => p.active) || null;
+
+      setState(prev => ({
+        ...prev,
+        profiles: {
+          all: profiles,
+          active: activeProfile,
+          loading: false,
+          error: null
+        }
+      }));
+
+      return profiles;
+    } catch (error: any) {
+      console.error('Failed to fetch profiles:', error);
+      setState(prev => ({
+        ...prev,
+        profiles: {
+          ...prev.profiles,
+          loading: false,
+          error: 'プロファイル情報の取得に失敗しました'
+        }
+      }));
+      return [];
+    }
+  };
+
+  // プロファイルをアクティブにする関数
+  const activateProfile = async (profileId: string): Promise<boolean> => {
+    try {
+      setLoading(true, 'プロファイルをアクティブにしています...');
+      
+      // プロファイルをアクティブにするAPIを呼び出し
+      await axios.post('/api/profiles/activate', {
+        profile_id: profileId
+      });
+      
+      // プロファイル一覧を再取得して最新情報に更新
+      await fetchProfiles();
+      
+      setLoading(false);
+      return true;
+    } catch (error: any) {
+      console.error('Failed to activate profile:', error);
+      setError(`プロファイルのアクティブ化に失敗しました: ${error.response?.data?.error || error.message}`);
+      setLoading(false);
+      return false;
+    }
+  };
 
   // 状態更新関数
   const setBackendConnected = (connected: boolean) => {
@@ -275,6 +375,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setBackendConnected,
     updateUser,
     setInitialized,
+    fetchProfiles,
+    activateProfile,
     addUploadedFile,
     clearUploadedFiles,
     startTraining,

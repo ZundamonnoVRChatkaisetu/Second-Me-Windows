@@ -15,6 +15,15 @@ module.exports = {
         secondary: {
           DEFAULT: 'var(--accent-color)',
         },
+        // ダークモード用のカスタム色を追加
+        background: {
+          light: 'var(--background-light)',
+          dark: 'var(--background-dark)'
+        },
+        foreground: {
+          light: 'var(--foreground-light)',
+          dark: 'var(--foreground-dark)'
+        },
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -24,5 +33,6 @@ module.exports = {
     },
   },
   plugins: [],
-  darkMode: 'media',
+  // 'class'に変更することで、classに基づいてダークモードを切り替え
+  darkMode: 'class',
 };

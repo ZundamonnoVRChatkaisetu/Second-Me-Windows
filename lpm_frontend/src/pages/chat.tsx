@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import ChatInterface from '../components/ChatInterface';
+import ProfileSwitcher from '../components/ProfileSwitcher';
 import axios from 'axios';
 import { formatUptime } from '../lib/utils';
+import { useAppContext } from '../lib/AppContext';
 
 /**
  * チャットページ
  * Second Meとのチャット専用ページ
  */
 export default function ChatPage() {
+  const { profiles } = useAppContext();
   const [status, setStatus] = useState<{
     status: string;
     uptime: number;
@@ -54,6 +57,31 @@ export default function ChatPage() {
             <div className="flex flex-col md:flex-row gap-6">
               {/* 左側のサイドバー */}
               <div className="w-full md:w-1/4">
+                {/* プロファイル選択セクション */}
+                <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-lg font-medium">プロファイル</h2>
+                  </div>
+                  
+                  {/* アクティブなプロファイル情報 */}
+                  <div className="mb-3">
+                    <div className="text-sm text-gray-500 mb-1">現在使用中:</div>
+                    <div className="font-medium">
+                      {profiles.active ? (
+                        <div className="flex items-center">
+                          <span className="mr-2">👤</span>
+                          {profiles.active.name}
+                        </div>
+                      ) : (
+                        <div className="text-yellow-600">選択されていません</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* プロファイル切り替えコンポーネント */}
+                  <ProfileSwitcher />
+                </div>
+                
                 <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
                   <h2 className="text-lg font-medium mb-3">ステータス</h2>
                   
@@ -118,7 +146,12 @@ export default function ChatPage() {
               {/* チャットエリア */}
               <div className="w-full md:w-3/4">
                 <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h1 className="text-2xl font-bold mb-4">Second Me チャット</h1>
+                  <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-bold">Second Me チャット</h1>
+                    <div className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                      {profiles.active ? `${profiles.active.name}と会話中` : '選択されていません'}
+                    </div>
+                  </div>
                   <ChatInterface className="h-[600px]" />
                 </div>
               </div>

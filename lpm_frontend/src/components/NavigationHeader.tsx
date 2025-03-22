@@ -72,11 +72,14 @@ const NavigationHeader: React.FC = () => {
           <Link href="/chat" className="text-blue-100 hover:text-white transition-colors">
             チャット
           </Link>
+          <Link href="/memory" className="text-blue-100 hover:text-white transition-colors">
+            メモリー
+          </Link>
+          <Link href="/workspace" className="text-blue-100 hover:text-white transition-colors">
+            WorkSpace
+          </Link>
           <Link href="/network" className="text-blue-100 hover:text-white transition-colors">
             ネットワーク
-          </Link>
-          <Link href="/about" className="text-blue-100 hover:text-white transition-colors">
-            概要
           </Link>
           <Link href="/docs" className="text-blue-100 hover:text-white transition-colors">
             ドキュメント
@@ -108,6 +111,13 @@ const NavigationHeader: React.FC = () => {
                   </Link>
                   <Link href="/profiles/wizard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                     ウィザード形式で作成
+                  </Link>
+                  <hr className="my-1" />
+                  <Link href="/memory" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    メモリー管理
+                  </Link>
+                  <Link href="/workspace" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    WorkSpace
                   </Link>
                 </div>
               </div>

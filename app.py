@@ -21,6 +21,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
+# トレーニングデータ管理モジュールをインポート
+import training_manager
+
 # 環境変数の読み込み
 load_dotenv()
 
@@ -51,6 +54,9 @@ PROFILES_DIR = os.getenv('PROFILES_DIR', os.path.join(os.getcwd(), 'profiles'))
 
 # WorkSpaceディレクトリパス
 WORKSPACE_DIR = os.getenv('WORKSPACE_DIR', os.path.join(os.getcwd(), 'WorkSpace'))
+
+# トレーニングディレクトリパス
+TRAINING_DIR = os.getenv('TRAINING_DIR', os.path.join(os.getcwd(), 'training'))
 
 # 現在選択されているモデル
 SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
@@ -106,6 +112,11 @@ def get_info():
             'enabled': True,
             'profile_isolation': True,
             'path': get_current_workspace_path()
+        },
+        'training': {
+            'enabled': True,
+            'active_processes': len(training_manager.TRAINING_PROCESSES),
+            'path': training_manager.get_current_training_path(PROFILES_DIR, ACTIVE_PROFILE)
         },
         'system': {
             'start_time': START_TIME.isoformat(),
@@ -1468,6 +1479,188 @@ def delete_workspace_directory():
     
     except Exception as e:
         logger.exception(f"Error deleting workspace directory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# トレーニングデータ管理用APIエンドポイント
+
+@app.route('/api/training/data', methods=['GET'])
+def list_training_data():
+    """トレーニングデータ一覧を取得するエンドポイント"""
+    try:
+        # カテゴリフィルター（オプション）
+        category = request.args.get('category', None)
+        
+        # トレーニングマネージャを使用してデータを取得
+        result = training_manager.list_training_data(PROFILES_DIR, ACTIVE_PROFILE, category)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error listing training data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/data/<data_id>', methods=['GET'])
+def get_training_data(data_id):
+    """特定のトレーニングデータを取得するエンドポイント"""
+    try:
+        # データパスを取得（クエリパラメータから）
+        data_path = request.args.get('path', '')
+        
+        # トレーニングマネージャを使用してデータを取得
+        result = training_manager.get_training_data(PROFILES_DIR, ACTIVE_PROFILE, data_id, data_path)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error getting training data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/upload', methods=['POST'])
+def upload_training_data():
+    """トレーニングデータをアップロードするエンドポイント"""
+    try:
+        # カテゴリ（オプション、デフォルトはgeneral）
+        category = request.form.get('category', 'general')
+        
+        # ファイルの取得
+        files = request.files.getlist('file')  # 複数ファイルに対応
+        
+        # トレーニングマネージャを使用してファイルを保存
+        result = training_manager.save_uploaded_files(PROFILES_DIR, ACTIVE_PROFILE, files, category)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error uploading training data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/data/<data_id>', methods=['DELETE'])
+def delete_training_data(data_id):
+    """トレーニングデータを削除するエンドポイント"""
+    try:
+        # データパスを取得（クエリパラメータから）
+        data_path = request.args.get('path', '')
+        
+        # トレーニングマネージャを使用してデータを削除
+        result = training_manager.delete_training_data(PROFILES_DIR, ACTIVE_PROFILE, data_id, data_path)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error deleting training data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/process', methods=['POST'])
+def start_training_process():
+    """トレーニングプロセスを開始するエンドポイント"""
+    try:
+        # トレーニングパラメータを取得
+        data = request.json
+        
+        # トレーニングマネージャを使用してプロセスを開始
+        result = training_manager.start_training_process(PROFILES_DIR, ACTIVE_PROFILE, data)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error starting training process: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/status/<training_id>', methods=['GET'])
+def get_training_status(training_id):
+    """トレーニングプロセスのステータスを取得するエンドポイント"""
+    try:
+        # トレーニングマネージャを使用してステータスを取得
+        result = training_manager.get_training_status(training_id, PROFILES_DIR, ACTIVE_PROFILE)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error getting training status: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/log/<training_id>', methods=['GET'])
+def get_training_log(training_id):
+    """トレーニングログを取得するエンドポイント"""
+    try:
+        # トレーニングマネージャを使用してログを取得
+        result = training_manager.get_training_log(training_id, PROFILES_DIR, ACTIVE_PROFILE)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error getting training log: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/history', methods=['GET'])
+def get_training_history():
+    """トレーニング履歴を取得するエンドポイント"""
+    try:
+        # トレーニングマネージャを使用して履歴を取得
+        result = training_manager.get_training_history(PROFILES_DIR, ACTIVE_PROFILE)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error getting training history: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/training/cancel/<training_id>', methods=['POST'])
+def cancel_training_process(training_id):
+    """トレーニングプロセスをキャンセルするエンドポイント"""
+    try:
+        # トレーニングマネージャを使用してプロセスをキャンセル
+        result = training_manager.cancel_training_process(training_id, PROFILES_DIR, ACTIVE_PROFILE)
+        
+        # エラーチェック
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and 'error' in result[0]:
+            return jsonify(result[0]), result[1]
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.exception(f"Error cancelling training process: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

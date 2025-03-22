@@ -1,134 +1,87 @@
-import React from 'react';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/Button';
 import Link from 'next/link';
 
 /**
- * About ページ - Second Meプロジェクトの詳細情報を提供
+ * 概要ページ
+ * プロジェクトについての詳細情報
  */
 export default function AboutPage() {
   return (
     <Layout>
-      <div className="bg-cream-50 py-16">
+      <div className="bg-gray-50 py-12">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-bold mb-4">Second Me について</h1>
-              <p className="text-lg text-gray-600">
-                あなた自身のAI自己をWindowsで実現するオープンソースプロジェクト
-              </p>
-            </div>
-
-            {/* 主要セクション */}
-            <div className="mb-16">
-              <h2 className="text-2xl font-bold mb-6">プロジェクトの目的</h2>
-              <p className="mb-4">
-                Second Meは、あなた自身のAI自己（AI self）を作成するためのオープンソースプロトコルです。
-                従来の大規模言語モデルとは異なり、Second Meはあなたのアイデンティティ、経験、
-                価値観を反映したパーソナライズされたAIインテリジェンスを構築します。
-              </p>
-              <p className="mb-4">
-                私たちのWindowsプロジェクトは、オリジナルのSecond Meプロトコルを
-                Windows環境で利用できるように移植したものです。これにより、
-                より多くの人々がこの革新的な技術にアクセスできるようになります。
-              </p>
-            </div>
-
-            {/* 主な機能セクション */}
-            <div className="mb-16">
-              <h2 className="text-2xl font-bold mb-6">主な機能</h2>
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              <h1 className="text-3xl font-bold mb-6">Second Me について</h1>
               
-              <div className="space-y-8">
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">あなた自身のAI自己をトレーニング</h3>
-                  <p>
-                    AIネイティブメモリを使用して、Second Meであなた自身のAI自己のトレーニングを開始できます。
-                    階層的メモリモデリング（HMM）とMe-Alignmentアルゴリズムを使用して、あなたのAI自己はあなたのアイデンティティを捉え、
-                    コンテキストを理解し、あなたを本物のように反映します。
-                  </p>
-                </div>
+              <div className="prose max-w-none">
+                <p className="text-lg text-gray-700 mb-6">
+                  Second Meは、あなた自身のAI自己（AI self）を作成するためのオープンソースプロトコルです。
+                  階層的メモリモデリング（HMM）とMe-Alignmentアルゴリズムを使用して、あなたのAI自己はあなたのアイデンティティを捉え、
+                  コンテキストを理解し、あなたを本物のように反映します。
+                </p>
                 
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">Second Meネットワーク上でのインテリジェンスの拡張</h3>
-                  <p>
-                    ラップトップからあなたのAI自己を分散型ネットワークに起動し、あなたの許可を得た人々やアプリケーションが
-                    接続してデジタルアイデンティティとしてあなたのコンテキストを共有できます。
-                  </p>
-                </div>
+                <h2 className="text-2xl font-semibold mt-8 mb-4">ミッション</h2>
+                <p className="mb-4">
+                  私たちのミッションは、すべての人が自分自身のAI自己を持ち、デジタル世界でより効果的に自分自身を表現できるようにすることです。
+                  私たちは、AIが私たちの代わりに話すのではなく、私たちと一緒に話すことができる世界を信じています。
+                </p>
                 
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">ロールプレイとAIスペース</h3>
-                  <p>
-                    あなたのAI自己は、さまざまなシナリオであなたを表現するために異なるペルソナに切り替えることができます。
-                    また、他のSecond Meと協力してアイデアを生み出したり、問題を解決したりできます。
-                  </p>
-                </div>
+                <h2 className="text-2xl font-semibold mt-8 mb-4">主な特徴</h2>
+                <ul className="list-disc pl-6 mb-6 space-y-2">
+                  <li>
+                    <strong>あなた自身のAI自己をトレーニング</strong> - AIネイティブメモリを使用して、今すぐあなた自身のAI自己のトレーニングを開始できます。
+                  </li>
+                  <li>
+                    <strong>ネットワーク上でのインテリジェンスの拡張</strong> - あなたのAI自己を分散型ネットワークに起動し、あなたの許可を得た人々が接続できます。
+                  </li>
+                  <li>
+                    <strong>ロールプレイとAIスペース</strong> - あなたのAI自己は、さまざまなシナリオであなたを表現するために異なるペルソナに切り替えることができます。
+                  </li>
+                  <li>
+                    <strong>100%のプライバシーとコントロール</strong> - あなたの情報とインテリジェンスはローカルに保存され、完全にプライベートです。
+                  </li>
+                </ul>
                 
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">100%のプライバシーとコントロール</h3>
+                <h2 className="text-2xl font-semibold mt-8 mb-4">技術</h2>
+                <p className="mb-4">
+                  Second Meは、最先端のAI技術を活用しています：
+                </p>
+                <ul className="list-disc pl-6 mb-6 space-y-2">
+                  <li>最新の言語モデル（LLM）をローカルで実行</li>
+                  <li>階層的メモリモデリング（HMM）でコンテキストを理解</li>
+                  <li>Me-Alignmentアルゴリズムでアイデンティティを捕捉</li>
+                  <li>分散型ネットワークでAI自己を共有</li>
+                </ul>
+                
+                <h2 className="text-2xl font-semibold mt-8 mb-4">Windows版について</h2>
+                <p className="mb-4">
+                  Second Me WindowsはオリジナルのSecond Meをベースに、Windows環境でも動作するように改変されたバージョンです。
+                  Python、Node.js、React、およびNext.jsを使用して実装されており、
+                  Windows 10/11上で動作します。
+                </p>
+                
+                <div className="bg-blue-50 p-6 rounded-lg mt-8">
+                  <h3 className="text-xl font-medium mb-3">オープンソースコミュニティ</h3>
                   <p>
-                    従来の集中型AIシステムとは異なり、Second Meはあなたの情報とインテリジェンスがローカルに保存され、
-                    完全にプライベートであることを保証します。あなたのデータはあなたのコンピューターから離れることはありません。
+                    Second Meはオープンソースプロジェクトであり、コミュニティからの貢献を歓迎します。
+                    バグ修正、新機能の追加、ドキュメントの改善など、どんな形の貢献も大歓迎です。
                   </p>
+                  <div className="mt-4">
+                    <Link href="https://github.com/ZundamonnoVRChatkaisetu/Second-Me-Windows" target="_blank">
+                      <Button>GitHubでコントリビュート</Button>
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* 技術スタック */}
-            <div className="mb-16">
-              <h2 className="text-2xl font-bold mb-6">技術スタック</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">バックエンド</h3>
-                  <ul className="list-disc pl-5 space-y-2">
-                    <li>Python 3.10+</li>
-                    <li>Flask - Webサーバー</li>
-                    <li>SQLite - データベース</li>
-                    <li>llama.cpp - モデル推論</li>
-                    <li>GraphRAG - データ合成</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                  <h3 className="text-xl font-semibold mb-3">フロントエンド</h3>
-                  <ul className="list-disc pl-5 space-y-2">
-                    <li>Next.js - フレームワーク</li>
-                    <li>React - UIライブラリ</li>
-                    <li>Tailwind CSS - スタイリング</li>
-                    <li>Axios - APIクライアント</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* チーム情報 */}
-            <div className="mb-16">
-              <h2 className="text-2xl font-bold mb-6">Second Meチームについて</h2>
-              <p className="mb-4">
-                Second Meは、AI技術の民主化とパーソナライズされたAIの未来を信じる開発者、
-                研究者、デザイナーの集まりによって開発されています。私たちは、あなた自身のデータと
-                知性を制御できるAIの未来を創造することに専念しています。
-              </p>
-              <p>
-                Windows互換版は、オリジナルのSecond Meプロジェクトの理念に基づいて、
-                より多くの人々にこの技術を提供することを目的としています。
-              </p>
-            </div>
-
-            {/* コミュニティ参加セクション */}
-            <div className="bg-blue-50 p-8 rounded-lg text-center">
-              <h2 className="text-2xl font-bold mb-4">コミュニティに参加する</h2>
-              <p className="mb-6">
-                Second Meプロジェクトはオープンソースであり、あなたの貢献を歓迎します。
-                コードの改善、ドキュメントの作成、バグの報告など、どんな形でも参加できます。
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <Link href="https://github.com/ZundamonnoVRChatkaisetu/Second-Me-Windows" target="_blank">
-                  <Button>GitHub で参加</Button>
+              <div className="mt-12 flex justify-center">
+                <Link href="/">
+                  <Button variant="outline" className="mr-4">ホームに戻る</Button>
                 </Link>
                 <Link href="/create">
-                  <Button variant="primary">今すぐ始める</Button>
+                  <Button>始めましょう</Button>
                 </Link>
               </div>
             </div>
@@ -137,4 +90,4 @@ export default function AboutPage() {
       </div>
     </Layout>
   );
-};
+}

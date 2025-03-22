@@ -40,7 +40,7 @@ CORS(app)  # クロスオリジンリソース共有を有効化
 # ポート設定
 PORT = int(os.getenv('LOCAL_APP_PORT', 8002))
 
-# モデルパス
+# モデルパス（現在選択されているモデル名を保持）
 MODEL_PATH = os.getenv('MODEL_PATH', '')
 
 # Ollama設定
@@ -80,7 +80,7 @@ def get_info():
         },
         'model': {
             'path': MODEL_PATH,
-            'loaded': bool(MODEL_PATH and os.path.exists(MODEL_PATH))
+            'loaded': bool(MODEL_PATH)
         },
         'system': {
             'start_time': START_TIME.isoformat(),
@@ -104,19 +104,73 @@ def echo():
 def chat():
     """
     チャットエンドポイント
-    実際の処理はダミーで、llama.cppが統合されるまでのプレースホルダー
+    Ollamaを使用してメッセージに応答
     """
     data = request.json
     message = data.get('message', '')
     logger.info(f"Chat request received with message: {message}")
     
-    # ダミー応答 (実際にはここでllama.cppを呼び出す)
-    response = {
-        'message': f"あなたのメッセージを受け取りました: {message}",
-        'timestamp': datetime.now().isoformat()
-    }
+    # モデルが設定されているか確認
+    if not MODEL_PATH:
+        logger.warning("No model selected, returning dummy response")
+        return jsonify({
+            'message': "モデルが選択されていません。設定ページでモデルを選択してください。",
+            'timestamp': datetime.now().isoformat()
+        })
     
-    return jsonify(response)
+    try:
+        # Ollamaへのリクエスト
+        ollama_response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": MODEL_PATH,
+                "messages": [
+                    {"role": "user", "content": message}
+                ],
+                "stream": False
+            },
+            timeout=60  # タイムアウトを60秒に設定
+        )
+        
+        # レスポンスの確認
+        if ollama_response.status_code == 200:
+            # 成功した場合の応答内容を取得
+            response_data = ollama_response.json()
+            content = response_data.get('message', {}).get('content', '')
+            
+            if not content:
+                logger.error(f"Ollama returned empty content: {response_data}")
+                return jsonify({
+                    'message': "Ollamaからの応答が空でした。再度お試しください。",
+                    'timestamp': datetime.now().isoformat()
+                })
+            
+            # 成功レスポンス
+            return jsonify({
+                'message': content,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            # エラーレスポンス
+            logger.error(f"Ollama API error: {ollama_response.status_code} - {ollama_response.text}")
+            return jsonify({
+                'message': f"Ollamaからのエラー応答: {ollama_response.status_code}",
+                'timestamp': datetime.now().isoformat()
+            })
+    
+    except requests.exceptions.Timeout:
+        logger.error("Ollama API request timed out")
+        return jsonify({
+            'message': "Ollamaからの応答がタイムアウトしました。再度お試しください。",
+            'timestamp': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error communicating with Ollama: {str(e)}")
+        return jsonify({
+            'message': f"Ollamaとの通信中にエラーが発生しました: {str(e)}",
+            'timestamp': datetime.now().isoformat()
+        })
 
 
 @app.route('/api/memory', methods=['GET'])
@@ -292,9 +346,7 @@ def set_ollama_model():
         if not model_name:
             return jsonify({'error': 'Model name is required'}), 400
         
-        # ここでモデル名を保存または設定
-        # この例では環境変数に設定しているが、実際の実装では
-        # 設定ファイルやデータベースに保存するか、メモリに保持する
+        # モデル名をグローバル変数に設定
         global MODEL_PATH
         MODEL_PATH = model_name
         
@@ -319,12 +371,9 @@ if __name__ == '__main__':
     logger.info(f"Log level: {log_level}")
     
     if MODEL_PATH:
-        if os.path.exists(MODEL_PATH):
-            logger.info(f"Model found at {MODEL_PATH}")
-        else:
-            logger.warning(f"Model not found at {MODEL_PATH}")
+        logger.info(f"Using Ollama model: {MODEL_PATH}")
     else:
-        logger.warning("MODEL_PATH not set, chat functionality will be limited")
+        logger.warning("No model selected, chat functionality will be limited")
     
     # Ollamaが利用可能か確認
     try:

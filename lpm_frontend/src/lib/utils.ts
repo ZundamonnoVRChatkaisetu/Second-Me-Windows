@@ -1,3 +1,13 @@
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+/**
+ * ユーティリティ関数: クラス名を結合して最適化する
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 /**
  * 環境変数からバックエンドのURLを取得する
  * 環境変数が設定されていない場合はデフォルト値を返す
@@ -36,4 +46,30 @@ export function getApiUrl(path: string): string {
  */
 export function formatDate(date: Date): string {
   return date.toLocaleString();
+}
+
+/**
+ * 文字列を指定された長さに切り詰める
+ * @param str - 対象の文字列
+ * @param maxLength - 最大長
+ * @returns 切り詰められた文字列
+ */
+export function truncateString(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength) + '...';
+}
+
+/**
+ * フォーマット済みの経過時間を取得する
+ * @param seconds - 経過秒数
+ * @returns フォーマット済みの時間文字列
+ */
+export function formatUptime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes} min`;
 }

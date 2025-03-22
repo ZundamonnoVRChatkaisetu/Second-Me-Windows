@@ -8,7 +8,7 @@ Second Me Windows バックエンドアプリケーション
 
 import os
 import json
-from flask import Flask
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import config
@@ -20,7 +20,23 @@ from routes import register_routes
 
 # Flaskアプリケーションの設定
 app = Flask(__name__)
-CORS(app)  # クロスオリジンリソース共有を有効化
+
+# CORSの詳細設定
+cors = CORS(
+    app, 
+    resources={r"/api/*": {"origins": "*"}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)
+
+# すべてのレスポンスにCORSヘッダーを追加
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # アップロード設定
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -96,6 +112,15 @@ if __name__ == '__main__':
             logger.info("No profiles found, will create default profile if needed")
     except Exception as e:
         logger.warning(f"Error scanning profiles directory: {str(e)}")
+    
+    # OPTIONS リクエストのためのハンドラを追加
+    @app.route('/api/profiles/activate', methods=['OPTIONS'])
+    def options_profiles_activate():
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
     
     # Flaskアプリケーション起動
     app.run(host='0.0.0.0', port=PORT, debug=False)

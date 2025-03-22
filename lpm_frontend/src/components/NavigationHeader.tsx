@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from './ui/Button';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
+import axios from 'axios';
+
+interface ActiveProfile {
+  id: string;
+  name: string;
+}
 
 /**
  * アプリケーションのナビゲーションヘッダーコンポーネント
@@ -10,9 +16,38 @@ import { useTheme } from './ThemeProvider';
  */
 const NavigationHeader: React.FC = () => {
   const { theme } = useTheme();
+  const [activeProfile, setActiveProfile] = useState<ActiveProfile | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // アクティブなプロファイルを取得
+  useEffect(() => {
+    const fetchActiveProfile = async () => {
+      try {
+        const response = await axios.get('/api/profiles');
+        const profiles = response.data.profiles || [];
+        const active = profiles.find((p: any) => p.active);
+        
+        if (active) {
+          setActiveProfile({
+            id: active.id,
+            name: active.name
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch active profile:', err);
+      }
+    };
+    
+    fetchActiveProfile();
+  }, []);
+
+  // プロファイルメニューの表示・非表示を切り替え
+  const toggleProfileMenu = () => {
+    setShowProfileMenu(!showProfileMenu);
+  };
   
   return (
-    <header className={`w-full ${
+    <header className={`w-full ${ 
       theme === 'dark' 
         ? 'bg-gray-900 border-gray-800' 
         : 'bg-blue-600 border-blue-700'
@@ -50,9 +85,35 @@ const NavigationHeader: React.FC = () => {
 
         {/* 右側のアクション */}
         <div className="flex items-center space-x-4">
+          {/* アクティブなプロファイル */}
+          <div className="relative">
+            <button 
+              onClick={toggleProfileMenu}
+              className="flex items-center text-blue-100 hover:text-white transition-colors"
+            >
+              <span className="mr-1">👤</span>
+              <span className="hidden sm:inline">{activeProfile ? activeProfile.name : '選択なし'}</span>
+              <span className="ml-1">▼</span>
+            </button>
+            
+            {/* プロファイルメニュー（クリック時に表示） */}
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                <div className="py-1">
+                  <Link href="/profiles" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    プロファイル管理
+                  </Link>
+                  <Link href="/profiles/create" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    新規プロファイル作成
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+          
           {/* 設定ページへのリンク */}
           <Link href="/settings" className="text-blue-100 hover:text-white transition-colors">
-            ⚙️ 設定
+            ⚙️ <span className="hidden sm:inline">設定</span>
           </Link>
           
           {/* テーマ切り替えボタン */}
@@ -60,7 +121,7 @@ const NavigationHeader: React.FC = () => {
           
           <Link href="https://github.com/ZundamonnoVRChatkaisetu/Second-Me-Windows" 
                 target="_blank"
-                className="text-blue-100 hover:text-white transition-colors hidden md:inline-block">
+                className="text-blue-100 hover:text-white transition-colors hidden lg:inline-block">
             GitHub でスターを付ける
           </Link>
           
@@ -75,7 +136,8 @@ const NavigationHeader: React.FC = () => {
                   : 'bg-white text-blue-600 hover:bg-blue-50'
               }`}
             >
-              第二の自分を作る
+              <span className="hidden sm:inline">第二の自分を作る</span>
+              <span className="sm:hidden">作成</span>
             </Button>
           </Link>
         </div>

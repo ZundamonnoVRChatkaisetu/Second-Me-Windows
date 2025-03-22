@@ -156,12 +156,15 @@ def register_routes(app: Flask):
             import config as app_config
             app_config.ACTIVE_PROFILE = profile_id
             
+            # プロファイル設定
+            profile_config = {}
+            
             # プロファイルのモデルも選択
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
-                    config_data = json.load(f)
+                    profile_config = json.load(f)
                 
-                model_path = config_data.get('model_path', '')
+                model_path = profile_config.get('model_path', '')
                 if model_path and os.path.exists(model_path):
                     app_config.SELECTED_MODEL_PATH = model_path
                     logger.info(f"Using profile's model: {model_path}")
@@ -171,7 +174,13 @@ def register_routes(app: Flask):
             return jsonify({
                 'status': 'success',
                 'message': f'プロファイル "{profile_id}" を選択しました',
-                'profile_id': profile_id
+                'profile': {
+                    'id': profile_id,
+                    'name': profile_config.get('name', profile_id),
+                    'description': profile_config.get('description', ''),
+                    'is_active': True,
+                    'model_path': profile_config.get('model_path', '')
+                }
             })
             
         except Exception as e:
@@ -184,10 +193,78 @@ def register_routes(app: Flask):
     @app.route('/api/profiles/activate', methods=['POST', 'PUT'])
     def activate_profile():
         """
-        プロファイルをアクティブ化するエンドポイント（/select のエイリアス）
+        プロファイルをアクティブ化するエンドポイント
         古いフロントエンドコードとの互換性のために提供
         """
-        return select_profile()
+        try:
+            # リクエストのログ
+            logger.info(f"activate_profile request: method={request.method}, data={request.json}")
+            
+            data = request.json
+            if not data:
+                return jsonify({
+                    'error': 'リクエストデータが空です'
+                }), 400
+            
+            # 異なる形式からprofile_idを抽出
+            profile_id = None
+            if 'profile_id' in data:
+                profile_id = data['profile_id']
+            elif 'id' in data:
+                profile_id = data['id']
+            
+            if not profile_id:
+                return jsonify({
+                    'error': 'プロファイルIDが指定されていません'
+                }), 400
+            
+            # プロファイルの存在確認
+            profile_dir = os.path.join(PROFILES_DIR, profile_id)
+            config_path = os.path.join(profile_dir, 'config.json')
+            
+            if not os.path.exists(profile_dir) or not os.path.exists(config_path):
+                return jsonify({
+                    'error': f'プロファイル "{profile_id}" が見つかりません'
+                }), 404
+            
+            # グローバル変数を更新
+            import config as app_config
+            app_config.ACTIVE_PROFILE = profile_id
+            
+            # プロファイル設定を読み込む
+            profile_config = {}
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    profile_config = json.load(f)
+                
+                # モデルも選択
+                model_path = profile_config.get('model_path', '')
+                if model_path and os.path.exists(model_path):
+                    app_config.SELECTED_MODEL_PATH = model_path
+                    logger.info(f"Using profile's model: {model_path}")
+            except Exception as e:
+                logger.error(f"Failed to load profile config: {str(e)}")
+            
+            # オリジナルのSecond-Meのレスポンス形式に合わせた詳細な応答
+            # これはフロントエンドの期待する形式に近づける試みです
+            return jsonify({
+                'success': True,
+                'profile': {
+                    'id': profile_id,
+                    'name': profile_config.get('name', profile_id),
+                    'description': profile_config.get('description', ''),
+                    'is_active': True,
+                    'model_path': profile_config.get('model_path', '')
+                }
+            })
+            
+        except Exception as e:
+            logger.exception(f"Error activating profile: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
+            }), 500
+
 
     @app.route('/api/profiles/<profile_id>', methods=['PUT'])
     def update_profile(profile_id):

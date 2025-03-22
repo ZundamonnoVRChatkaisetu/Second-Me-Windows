@@ -30,6 +30,14 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
      - チャットページのサイドバーにプロファイル選択UIを追加
      - チャットページのヘッダーにアクティブなプロファイル表示を追加
 
+4. **バグ修正および機能追加 (2025-03-23追加)**
+   - Layout コンポーネントのインポートパスを修正:
+     - トレーニングページのパスを修正 `../../components/layout/Layout` → `../../components/Layout`
+   - llama.cpp セットアップガイド機能を追加:
+     - llama.cpp の実行ファイルが見つからない場合にガイドを表示する `LlamaCppSetupGuide` コンポーネントを作成
+     - チャットインターフェースにセットアップエラー検出機能を追加
+     - ビルド済みバイナリの入手方法とソースコードからのビルド手順を案内
+
 ### 📌 現在取り組んでいる課題
 1. **各機能ページへのプロファイル切り替え機能の実装**
    - メモリーページ、WorkSpaceページなど他の機能ページへの組み込み
@@ -51,8 +59,10 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
    - `/profiles/create.tsx`（新規プロファイル作成）と`/profiles/wizard.tsx`（第2の自分作成ウィザード）で項目が異なる
    - 第2の自分作成メニュー（ウィザード形式）の項目に合わせるよう指示あり
 
-3. **llama.cppの実行ファイルパスの問題**
-   - Windowsでは実行ファイルに`.exe`拡張子が必要だが、コードでは対応されていない
+3. **llama.cppの実行ファイルパスの問題** ✅
+   - Windowsでは実行ファイルに`.exe`拡張子が必要だが、main.exeが存在しない
+   - 解決方法: llama.cppリポジトリからビルド済みバイナリを入手するか、ソースコードからビルドする必要がある
+   - セットアップガイドコンポーネントを作成してユーザーに手順を案内
 
 4. **UIの重なり問題** ✅
    - プロファイル管理UIが重なってボタンが押せない
@@ -61,18 +71,22 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
 5. **メニューUI改善要望** ✅
    - チャットメニューやメモリーなどのメニューからでも使用するプロファイルを切り替えられるようにしたい
 
+6. **Layoutコンポーネントのインポートパスエラー** ✅
+   - トレーニングページでLayoutコンポーネントのインポートパスが間違っていた
+   - 修正: `../../components/layout/Layout` → `../../components/Layout`に変更
+
 ### 📂 関連ファイル構成
 - `app.py` - バックエンドアプリケーション
 - `lpm_frontend/src/components/NavigationHeader.tsx` - ナビゲーションヘッダー
 - `lpm_frontend/src/components/ProfileSelector.tsx` - プロファイル選択コンポーネント
 - `lpm_frontend/src/components/ProfileSwitcher.tsx` - 機能ページ用プロファイル切り替えコンポーネント（新規作成）
+- `lpm_frontend/src/components/ChatInterface.tsx` - チャットインターフェース（修正）
+- `lpm_frontend/src/components/LlamaCppSetupGuide.tsx` - llama.cppセットアップガイド（新規作成）
 - `lpm_frontend/src/lib/AppContext.tsx` - アプリケーションコンテキスト
 - `lpm_frontend/src/pages/chat.tsx` - チャットページ（ProfileSwitcher実装）
-- `lpm_frontend/src/pages/create.tsx` - 第2の自分作成ページ（リダイレクト用）
 - `lpm_frontend/src/pages/profiles/wizard.tsx` - 第2の自分作成ウィザード
 - `lpm_frontend/src/pages/profiles/create.tsx` - 新規プロファイル作成ページ
-- `lpm_frontend/src/components/profile/BasicInfoStep.tsx` - ウィザードの基本情報ステップ
-- `lpm_frontend/src/components/ui/StepWizard.tsx` - ステップウィザードコンポーネント
+- `lpm_frontend/src/pages/training/index.tsx` - トレーニングページ（修正）
 
 ## 📝 問題分析と解決
 
@@ -102,10 +116,14 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
   - 入力バリデーションを強化
 
 ### 問題③: llama.cppの実行ファイルパスの問題 (解決済み)
-- **問題の本質**: Windows環境では実行ファイルに`.exe`拡張子が必要
+- **問題の本質**: 
+  1. Windowsでは実行ファイルに`.exe`拡張子が必要
+  2. llama.cppリポジトリにはデフォルトでmain.exeが含まれていない
 - **解決方法**:
-  - `app.py`にプラットフォーム検出ロジックを追加
-  - Windows環境では`main.exe`を使用するように条件分岐を追加
+  1. `app.py`にプラットフォーム検出ロジックを追加
+  2. Windows環境では`main.exe`を使用するように条件分岐を追加
+  3. ユーザー向けのセットアップガイドコンポーネント（`LlamaCppSetupGuide.tsx`）を作成
+  4. エラー検出機能を追加し、エラー発生時にガイドを表示
 
 ### 問題④: UIの重なり問題 (解決済み)
 - **問題の本質**: UIの配置に問題があり、要素が重なっている
@@ -127,6 +145,18 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
   1. 共通の`ProfileSwitcher`コンポーネントを新規作成
   2. チャットページのサイドバーにプロファイル切り替えUIを追加
   3. プロファイル切り替え時のUIフィードバックを追加
+
+### 問題⑥: Layoutコンポーネントのインポートパスエラー (解決済み)
+- **問題の本質**: トレーニングページでLayoutコンポーネントのインポートパスが間違っていた
+- **特定箇所**: `training/index.tsx`ファイルの以下の行
+  ```tsx
+  import Layout from '../../components/layout/Layout';
+  ```
+- **解決方法**: 
+  正しいパスに修正
+  ```tsx
+  import Layout from '../../components/Layout';
+  ```
 
 ## 🛠️ 今後の実装計画
 
@@ -161,7 +191,8 @@ Windows環境でSecond Meアプリケーションを構築し、UIの問題点�
    - プロファイル作成が成功することを確認
 
 3. **llama.cpp実行ファイルのテスト**
-   - Windows環境でチャット機能を実行し、レスポンスが正常に返ってくることを確認
+   - llama.cppバイナリ（main.exe）をダウンロードまたはビルドして適切なディレクトリに配置
+   - チャット機能を実行し、レスポンスが正常に返ってくることを確認
    - エラーメッセージが表示されないことを確認
 
 4. **UIの重なり問題修正のテスト**

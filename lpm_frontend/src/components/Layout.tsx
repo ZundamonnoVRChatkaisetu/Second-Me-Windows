@@ -4,6 +4,7 @@ import Footer from './Footer';
 import { cn } from '../lib/utils';
 import { useAppContext } from '@/lib/AppContext';
 import LoadingIndicator from './LoadingIndicator';
+import ConnectionStatus from './ConnectionStatus';
 import { useTheme } from './ThemeProvider';
 
 interface LayoutProps {
@@ -24,7 +25,7 @@ const Layout: React.FC<LayoutProps> = ({
   hideFooter = false,
   className = '',
 }) => {
-  const { isLoading, loadingMessage, error, backendConnected } = useAppContext();
+  const { isLoading, loadingMessage, error } = useAppContext();
   const { theme } = useTheme();
 
   return (
@@ -43,18 +44,10 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         )}
         
-        {/* バックエンド接続状態通知 */}
-        {!backendConnected && (
-          <div className={`w-full py-2 px-4 text-center ${
-            theme === 'dark' 
-              ? 'bg-red-900 text-white' 
-              : 'bg-red-500 text-white'
-          }`}>
-            <p className="text-sm">
-              バックエンドサービスに接続できません。一部の機能が利用できない可能性があります。
-            </p>
-          </div>
-        )}
+        {/* 接続状態インジケーター - 常に表示されます */}
+        <div className="fixed top-16 right-4 z-30">
+          <ConnectionStatus />
+        </div>
         
         {/* エラーメッセージ */}
         {error && (

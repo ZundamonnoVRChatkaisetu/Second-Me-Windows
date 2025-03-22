@@ -46,6 +46,7 @@ def register_routes(app: Flask):
                                 'description': config.get('description', ''),
                                 'created_at': config.get('created_at', ''),
                                 'is_active': is_active,
+                                'active': is_active,  # フロントエンド互換性のため
                                 'model_path': config.get('model_path', '')
                             })
                         except Exception as e:
@@ -171,16 +172,14 @@ def register_routes(app: Flask):
             except Exception as e:
                 logger.error(f"Failed to load profile config: {str(e)}")
             
+            # フロントエンドの期待する応答形式
             return jsonify({
-                'status': 'success',
-                'message': f'プロファイル "{profile_id}" を選択しました',
-                'profile': {
-                    'id': profile_id,
-                    'name': profile_config.get('name', profile_id),
-                    'description': profile_config.get('description', ''),
-                    'is_active': True,
-                    'model_path': profile_config.get('model_path', '')
-                }
+                'id': profile_id,
+                'name': profile_config.get('name', profile_id),
+                'description': profile_config.get('description', ''),
+                'is_active': True,
+                'active': True,  # フロントエンド互換性のため
+                'model_path': profile_config.get('model_path', '')
             })
             
         except Exception as e:
@@ -245,23 +244,20 @@ def register_routes(app: Flask):
             except Exception as e:
                 logger.error(f"Failed to load profile config: {str(e)}")
             
-            # オリジナルのSecond-Meのレスポンス形式に合わせた詳細な応答
-            # これはフロントエンドの期待する形式に近づける試みです
+            # フロントエンドの期待する形式に合わせたレスポンス 
+            # ProfileSelector.tsxのコードを見た結果、単純にプロファイル情報のみを期待している
             return jsonify({
-                'success': True,
-                'profile': {
-                    'id': profile_id,
-                    'name': profile_config.get('name', profile_id),
-                    'description': profile_config.get('description', ''),
-                    'is_active': True,
-                    'model_path': profile_config.get('model_path', '')
-                }
+                'id': profile_id,
+                'name': profile_config.get('name', profile_id),
+                'description': profile_config.get('description', ''),
+                'active': True,  # これがフロントエンドで期待されるフラグ
+                'is_active': True,
+                'model_path': profile_config.get('model_path', '')
             })
             
         except Exception as e:
             logger.exception(f"Error activating profile: {str(e)}")
             return jsonify({
-                'success': False,
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
             }), 500
 

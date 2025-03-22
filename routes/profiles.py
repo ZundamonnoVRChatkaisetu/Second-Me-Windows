@@ -128,10 +128,11 @@ def register_routes(app: Flask):
             }), 500
 
 
-    @app.route('/api/profiles/select', methods=['POST'])
+    @app.route('/api/profiles/select', methods=['POST', 'PUT'])
     def select_profile():
         """
         プロファイルを選択するエンドポイント
+        POSTとPUTの両方のHTTPメソッドをサポート（フロントエンド互換性のため）
         """
         try:
             data = request.json

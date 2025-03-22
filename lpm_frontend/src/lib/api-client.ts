@@ -81,24 +81,133 @@ export const getUploadedFiles = async (category?: string): Promise<any> => {
   }
 };
 
-// トレーニングプロセスを開始する関数
-export const startTraining = async (options?: any): Promise<any> => {
+// トレーニングデータ関連API
+
+// トレーニングデータ一覧を取得
+export const getTrainingData = async (category?: string): Promise<any> => {
   try {
-    const response = await apiClient.post('/api/training/start', options || {});
+    const response = await apiClient.get('/api/training/data', {
+      params: category ? { category } : {},
+    });
     return response.data;
   } catch (error) {
-    console.error('Error starting training:', error);
+    console.error('Error fetching training data:', error);
     throw error;
   }
 };
 
-// トレーニングの状態を取得する関数
-export const getTrainingStatus = async (): Promise<any> => {
+// 特定のトレーニングデータを取得
+export const getTrainingDataById = async (dataId: string, path: string): Promise<any> => {
   try {
-    const response = await apiClient.get('/api/training/status');
+    const response = await apiClient.get(`/api/training/data/${dataId}`, {
+      params: { path },
+    });
     return response.data;
   } catch (error) {
-    console.error('Error fetching training status:', error);
+    console.error(`Error fetching training data ${dataId}:`, error);
+    throw error;
+  }
+};
+
+// トレーニングデータをアップロード
+export const uploadTrainingData = async (
+  files: File[],
+  category: string,
+  onProgress?: (progressEvent: any) => void
+): Promise<any> => {
+  const formData = new FormData();
+  
+  // 複数ファイルを対応
+  for (const file of files) {
+    formData.append('file', file);
+  }
+  
+  formData.append('category', category);
+
+  try {
+    const response = await apiClient.post('/api/training/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: onProgress,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Training data upload error:', error);
+    throw error;
+  }
+};
+
+// トレーニングデータを削除
+export const deleteTrainingData = async (dataId: string, path: string): Promise<any> => {
+  try {
+    const response = await apiClient.delete(`/api/training/data/${dataId}`, {
+      params: { path },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting training data ${dataId}:`, error);
+    throw error;
+  }
+};
+
+// トレーニングプロセスを開始
+export const startTrainingProcess = async (params: {
+  model_path?: string;
+  learning_rate?: number;
+  epochs?: number;
+  batch_size?: number;
+  categories?: string[];
+}): Promise<any> => {
+  try {
+    const response = await apiClient.post('/api/training/process', params);
+    return response.data;
+  } catch (error) {
+    console.error('Error starting training process:', error);
+    throw error;
+  }
+};
+
+// トレーニングプロセスの状態を取得
+export const getTrainingProcessStatus = async (trainingId: string): Promise<any> => {
+  try {
+    const response = await apiClient.get(`/api/training/status/${trainingId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching training process status ${trainingId}:`, error);
+    throw error;
+  }
+};
+
+// トレーニングログを取得
+export const getTrainingLog = async (trainingId: string): Promise<any> => {
+  try {
+    const response = await apiClient.get(`/api/training/log/${trainingId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching training log ${trainingId}:`, error);
+    throw error;
+  }
+};
+
+// トレーニング履歴を取得
+export const getTrainingHistory = async (): Promise<any> => {
+  try {
+    const response = await apiClient.get('/api/training/history');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching training history:', error);
+    throw error;
+  }
+};
+
+// トレーニングプロセスをキャンセル
+export const cancelTrainingProcess = async (trainingId: string): Promise<any> => {
+  try {
+    const response = await apiClient.post(`/api/training/cancel/${trainingId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error cancelling training process ${trainingId}:`, error);
     throw error;
   }
 };

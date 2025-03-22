@@ -136,4 +136,170 @@ export const checkBackendHealth = async (): Promise<boolean> => {
   }
 };
 
+// メモリー関連API
+export const getMemories = async (): Promise<any> => {
+  try {
+    const response = await apiClient.get('/api/memory');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching memories:', error);
+    throw error;
+  }
+};
+
+export const getMemory = async (memoryId: string): Promise<any> => {
+  try {
+    const response = await apiClient.get(`/api/memory/${memoryId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching memory ${memoryId}:`, error);
+    throw error;
+  }
+};
+
+export const createMemory = async (memory: {
+  content: string;
+  category?: string;
+  importance?: number;
+}): Promise<any> => {
+  try {
+    const response = await apiClient.post('/api/memory', memory);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating memory:', error);
+    throw error;
+  }
+};
+
+export const updateMemory = async (
+  memoryId: string,
+  memory: {
+    content?: string;
+    category?: string;
+    importance?: number;
+  }
+): Promise<any> => {
+  try {
+    const response = await apiClient.put(`/api/memory/${memoryId}`, memory);
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating memory ${memoryId}:`, error);
+    throw error;
+  }
+};
+
+export const deleteMemory = async (memoryId: string): Promise<any> => {
+  try {
+    const response = await apiClient.delete(`/api/memory/${memoryId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting memory ${memoryId}:`, error);
+    throw error;
+  }
+};
+
+export const importMemories = async (file: File): Promise<any> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await apiClient.post('/api/memory/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error importing memories:', error);
+    throw error;
+  }
+};
+
+// WorkSpace関連API
+export const listWorkSpaceFiles = async (directory?: string): Promise<any> => {
+  try {
+    const response = await apiClient.get('/api/workspace/list', {
+      params: directory ? { dir: directory } : {},
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error listing workspace files:', error);
+    throw error;
+  }
+};
+
+export const getWorkSpaceFile = async (filePath: string): Promise<any> => {
+  try {
+    const response = await apiClient.get('/api/workspace/file', {
+      params: { path: filePath },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error getting workspace file ${filePath}:`, error);
+    throw error;
+  }
+};
+
+export const createWorkSpaceFile = async (filePath: string, content: string): Promise<any> => {
+  try {
+    const response = await apiClient.post('/api/workspace/file', {
+      path: filePath,
+      content,
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error creating workspace file ${filePath}:`, error);
+    throw error;
+  }
+};
+
+export const updateWorkSpaceFile = async (filePath: string, content: string): Promise<any> => {
+  try {
+    const response = await apiClient.put('/api/workspace/file', {
+      path: filePath,
+      content,
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating workspace file ${filePath}:`, error);
+    throw error;
+  }
+};
+
+export const deleteWorkSpaceFile = async (filePath: string): Promise<any> => {
+  try {
+    const response = await apiClient.delete('/api/workspace/file', {
+      params: { path: filePath },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting workspace file ${filePath}:`, error);
+    throw error;
+  }
+};
+
+export const createWorkSpaceDirectory = async (dirPath: string): Promise<any> => {
+  try {
+    const response = await apiClient.post('/api/workspace/directory', {
+      path: dirPath,
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error creating workspace directory ${dirPath}:`, error);
+    throw error;
+  }
+};
+
+export const deleteWorkSpaceDirectory = async (dirPath: string): Promise<any> => {
+  try {
+    const response = await apiClient.delete('/api/workspace/directory', {
+      params: { path: dirPath },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting workspace directory ${dirPath}:`, error);
+    throw error;
+  }
+};
+
 export default apiClient;

@@ -49,6 +49,9 @@ MODELS_DIR = os.getenv('MODELS_DIR', os.path.join(os.getcwd(), 'models'))
 # プロファイルディレクトリパス
 PROFILES_DIR = os.getenv('PROFILES_DIR', os.path.join(os.getcwd(), 'profiles'))
 
+# WorkSpaceディレクトリパス
+WORKSPACE_DIR = os.getenv('WORKSPACE_DIR', os.path.join(os.getcwd(), 'WorkSpace'))
+
 # 現在選択されているモデル
 SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
 
@@ -61,7 +64,7 @@ LLAMACPP_MAIN = os.path.join(LLAMACPP_PATH, 'main')
 
 # ファイルアップロード設定
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))
-ALLOWED_EXTENSIONS = {'pdf', 'txt', 'doc', 'docx', 'csv', 'json'}
+ALLOWED_EXTENSIONS = {'pdf', 'txt', 'doc', 'docx', 'csv', 'json', 'md', 'py', 'js', 'ts', 'html', 'css'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB制限
 
@@ -99,11 +102,32 @@ def get_info():
             'active': ACTIVE_PROFILE,
             'exists': bool(ACTIVE_PROFILE and os.path.exists(os.path.join(PROFILES_DIR, ACTIVE_PROFILE)))
         },
+        'workspace': {
+            'enabled': True,
+            'profile_isolation': True,
+            'path': get_current_workspace_path()
+        },
         'system': {
             'start_time': START_TIME.isoformat(),
             'uptime': (datetime.now() - START_TIME).total_seconds()
         }
     })
+
+
+def get_current_workspace_path():
+    """現在のワークスペースパスを取得"""
+    if not ACTIVE_PROFILE:
+        return None
+    
+    workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+    if not os.path.exists(workspace_path):
+        try:
+            os.makedirs(workspace_path)
+        except Exception as e:
+            logger.error(f"Failed to create workspace directory: {str(e)}")
+            return None
+    
+    return workspace_path
 
 
 @app.route('/api/echo', methods=['POST'])
@@ -250,6 +274,10 @@ def get_profiles():
                     with open(os.path.join(profile_dir, 'config.json'), 'r', encoding='utf-8') as f:
                         config = json.load(f)
                     
+                    # WorkSpaceディレクトリ確認
+                    workspace_dir = os.path.join(WORKSPACE_DIR, item)
+                    has_workspace = os.path.exists(workspace_dir)
+                    
                     # プロファイル情報を作成
                     profile_info = {
                         'id': item,
@@ -260,6 +288,7 @@ def get_profiles():
                         'model_path': config.get('model_path', ''),
                         'training_count': config.get('training_count', 0),
                         'memories_count': config.get('memories_count', 0),
+                        'has_workspace': has_workspace,
                         'active': (ACTIVE_PROFILE == item)
                     }
                     
@@ -308,6 +337,10 @@ def create_profile():
         os.makedirs(os.path.join(profile_dir, 'memories'))
         os.makedirs(os.path.join(profile_dir, 'training_data'))
         
+        # WorkSpaceディレクトリも作成
+        workspace_dir = os.path.join(WORKSPACE_DIR, profile_id)
+        os.makedirs(workspace_dir, exist_ok=True)
+        
         # 現在の日時
         now = datetime.now().isoformat()
         
@@ -319,7 +352,8 @@ def create_profile():
             'updated_at': now,
             'model_path': base_model_path,
             'training_count': 0,
-            'memories_count': 0
+            'memories_count': 0,
+            'workspace_path': workspace_dir
         }
         
         with open(os.path.join(profile_dir, 'config.json'), 'w', encoding='utf-8') as f:
@@ -344,6 +378,7 @@ def create_profile():
                 'created_at': now,
                 'updated_at': now,
                 'model_path': base_model_path,
+                'workspace_path': workspace_dir,
                 'active': True
             }
         })
@@ -385,6 +420,14 @@ def activate_profile():
         if model_path and os.path.exists(model_path):
             SELECTED_MODEL_PATH = model_path
         
+        # WorkSpaceディレクトリが存在しなければ作成
+        workspace_dir = os.path.join(WORKSPACE_DIR, profile_id)
+        if not os.path.exists(workspace_dir):
+            os.makedirs(workspace_dir)
+            config['workspace_path'] = workspace_dir
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        
         logger.info(f"Activated profile: {profile_id}")
         
         return jsonify({
@@ -392,7 +435,8 @@ def activate_profile():
             'profile': {
                 'id': profile_id,
                 'name': config.get('name', profile_id),
-                'model_path': SELECTED_MODEL_PATH
+                'model_path': SELECTED_MODEL_PATH,
+                'workspace_path': workspace_dir
             }
         })
     
@@ -490,6 +534,11 @@ def delete_profile():
         
         # プロファイルディレクトリを削除
         shutil.rmtree(profile_dir)
+        
+        # WorkSpaceディレクトリも削除
+        workspace_dir = os.path.join(WORKSPACE_DIR, profile_id)
+        if os.path.exists(workspace_dir):
+            shutil.rmtree(workspace_dir)
         
         logger.info(f"Deleted profile: {profile_id}")
         
@@ -681,6 +730,8 @@ def add_memory():
         
         data = request.json
         content = data.get('content', '').strip()
+        category = data.get('category', 'general').strip()
+        importance = data.get('importance', 1)  # 重要度: 1-5
         
         if not content:
             return jsonify({'error': 'Memory content is required'}), 400
@@ -701,6 +752,8 @@ def add_memory():
         # メモリーを作成
         memory = {
             'content': content,
+            'category': category,
+            'importance': importance,
             'created_at': now,
             'updated_at': now,
             'profile_id': ACTIVE_PROFILE
@@ -732,6 +785,689 @@ def add_memory():
     
     except Exception as e:
         logger.exception(f"Error adding memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/memory/<memory_id>', methods=['GET'])
+def get_memory(memory_id):
+    """特定のメモリーを取得するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # メモリーファイルのパス
+        memory_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories', f"{memory_id}.json")
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(memory_path):
+            return jsonify({'error': f'Memory not found: {memory_id}'}), 404
+        
+        # メモリーを読み込む
+        with open(memory_path, 'r', encoding='utf-8') as f:
+            memory = json.load(f)
+        
+        # IDを設定
+        memory['id'] = memory_id
+        
+        return jsonify({'memory': memory})
+    
+    except Exception as e:
+        logger.exception(f"Error getting memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/memory/<memory_id>', methods=['PUT'])
+def update_memory(memory_id):
+    """メモリーを更新するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # メモリーファイルのパス
+        memory_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories', f"{memory_id}.json")
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(memory_path):
+            return jsonify({'error': f'Memory not found: {memory_id}'}), 404
+        
+        # 既存のメモリーを読み込む
+        with open(memory_path, 'r', encoding='utf-8') as f:
+            memory = json.load(f)
+        
+        # 更新データを取得
+        data = request.json
+        content = data.get('content')
+        category = data.get('category')
+        importance = data.get('importance')
+        
+        # 更新
+        if content is not None:
+            memory['content'] = content
+        if category is not None:
+            memory['category'] = category
+        if importance is not None:
+            memory['importance'] = importance
+        
+        # 更新日時を設定
+        memory['updated_at'] = datetime.now().isoformat()
+        
+        # 保存
+        with open(memory_path, 'w', encoding='utf-8') as f:
+            json.dump(memory, f, ensure_ascii=False, indent=2)
+        
+        # IDを設定
+        memory['id'] = memory_id
+        
+        return jsonify({'memory': memory, 'status': 'success'})
+    
+    except Exception as e:
+        logger.exception(f"Error updating memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/memory/<memory_id>', methods=['DELETE'])
+def delete_memory(memory_id):
+    """メモリーを削除するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # メモリーファイルのパス
+        memory_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories', f"{memory_id}.json")
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(memory_path):
+            return jsonify({'error': f'Memory not found: {memory_id}'}), 404
+        
+        # メモリーを削除
+        os.remove(memory_path)
+        
+        # プロファイル設定を更新してメモリー数をデクリメント
+        config_path = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'config.json')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # メモリー数を更新（0未満にならないようにする）
+                config['memories_count'] = max(0, config.get('memories_count', 1) - 1)
+                config['updated_at'] = datetime.now().isoformat()
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to update profile config: {str(e)}")
+        
+        return jsonify({'status': 'success', 'message': f'Memory {memory_id} deleted successfully'})
+    
+    except Exception as e:
+        logger.exception(f"Error deleting memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/memory/import', methods=['POST'])
+def import_memories():
+    """複数のメモリーをインポートするエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # プロファイルのメモリーディレクトリ
+        memories_dir = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories')
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(memories_dir):
+            os.makedirs(memories_dir)
+        
+        # リクエストのタイプをチェック
+        if 'file' in request.files:
+            # ファイルからのインポート
+            file = request.files['file']
+            
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            # ファイル拡張子チェック
+            if not file.filename.lower().endswith(('.txt', '.csv', '.json')):
+                return jsonify({'error': 'Only .txt, .csv, or .json files are allowed'}), 400
+            
+            # ファイルを一時的に保存
+            temp_file_path = os.path.join(memories_dir, 'temp_import.txt')
+            file.save(temp_file_path)
+            
+            # ファイル形式に応じて処理
+            imported_count = 0
+            
+            if file.filename.lower().endswith('.txt'):
+                # テキストファイル: 行ごとにメモリーとして扱う
+                with open(temp_file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    if line:  # 空行をスキップ
+                        # メモリーを追加
+                        add_single_memory(line, 'imported', 1)
+                        imported_count += 1
+            
+            elif file.filename.lower().endswith('.csv'):
+                # CSVファイル: カンマ区切りで「内容,カテゴリ,重要度」として扱う
+                with open(temp_file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                for line in lines:
+                    parts = line.strip().split(',')
+                    content = parts[0].strip() if parts else ""
+                    category = parts[1].strip() if len(parts) > 1 else "imported"
+                    try:
+                        importance = int(parts[2].strip()) if len(parts) > 2 else 1
+                        importance = max(1, min(5, importance))  # 1-5の範囲に制限
+                    except:
+                        importance = 1
+                    
+                    if content:  # 空の内容をスキップ
+                        # メモリーを追加
+                        add_single_memory(content, category, importance)
+                        imported_count += 1
+            
+            elif file.filename.lower().endswith('.json'):
+                # JSONファイル: 配列または単一オブジェクトとして扱う
+                with open(temp_file_path, 'r', encoding='utf-8') as f:
+                    try:
+                        data = json.load(f)
+                        
+                        if isinstance(data, list):
+                            # 配列の場合
+                            for item in data:
+                                content = item.get('content', '').strip()
+                                category = item.get('category', 'imported').strip()
+                                importance = item.get('importance', 1)
+                                
+                                if content:  # 空の内容をスキップ
+                                    # メモリーを追加
+                                    add_single_memory(content, category, importance)
+                                    imported_count += 1
+                        elif isinstance(data, dict):
+                            # 単一オブジェクトの場合
+                            content = data.get('content', '').strip()
+                            category = data.get('category', 'imported').strip()
+                            importance = data.get('importance', 1)
+                            
+                            if content:  # 空の内容をスキップ
+                                # メモリーを追加
+                                add_single_memory(content, category, importance)
+                                imported_count += 1
+                    except json.JSONDecodeError:
+                        return jsonify({'error': 'Invalid JSON format'}), 400
+            
+            # 一時ファイルを削除
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            
+            # プロファイル設定を更新
+            update_profile_memory_count(ACTIVE_PROFILE, imported_count)
+            
+            return jsonify({
+                'status': 'success',
+                'imported_count': imported_count,
+                'message': f'Successfully imported {imported_count} memories'
+            })
+        
+        elif request.json:
+            # JSON形式のデータからのインポート
+            data = request.json
+            memories = data.get('memories', [])
+            
+            if not isinstance(memories, list):
+                return jsonify({'error': 'Memories should be provided as an array'}), 400
+            
+            imported_count = 0
+            
+            for memory in memories:
+                content = memory.get('content', '').strip()
+                category = memory.get('category', 'imported').strip()
+                importance = memory.get('importance', 1)
+                
+                if content:  # 空の内容をスキップ
+                    # メモリーを追加
+                    add_single_memory(content, category, importance)
+                    imported_count += 1
+            
+            # プロファイル設定を更新
+            update_profile_memory_count(ACTIVE_PROFILE, imported_count)
+            
+            return jsonify({
+                'status': 'success',
+                'imported_count': imported_count,
+                'message': f'Successfully imported {imported_count} memories'
+            })
+        
+        else:
+            return jsonify({'error': 'No memories data provided'}), 400
+    
+    except Exception as e:
+        logger.exception(f"Error importing memories: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+def add_single_memory(content, category, importance):
+    """単一のメモリーを追加するヘルパー関数"""
+    # 一意のIDを生成
+    memory_id = str(uuid.uuid4())
+    
+    # 現在の日時
+    now = datetime.now().isoformat()
+    
+    # メモリーを作成
+    memory = {
+        'content': content,
+        'category': category,
+        'importance': importance,
+        'created_at': now,
+        'updated_at': now,
+        'profile_id': ACTIVE_PROFILE
+    }
+    
+    # プロファイルのメモリーディレクトリ
+    memories_dir = os.path.join(PROFILES_DIR, ACTIVE_PROFILE, 'memories')
+    
+    # JSONファイルとして保存
+    with open(os.path.join(memories_dir, f"{memory_id}.json"), 'w', encoding='utf-8') as f:
+        json.dump(memory, f, ensure_ascii=False, indent=2)
+    
+    return memory_id
+
+
+def update_profile_memory_count(profile_id, count_change):
+    """プロファイルのメモリーカウントを更新するヘルパー関数"""
+    config_path = os.path.join(PROFILES_DIR, profile_id, 'config.json')
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # メモリー数を更新
+            config['memories_count'] = config.get('memories_count', 0) + count_change
+            config['updated_at'] = datetime.now().isoformat()
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to update profile config: {str(e)}")
+
+
+@app.route('/api/workspace/list', methods=['GET'])
+def list_workspace_files():
+    """WorkSpaceディレクトリ内のファイル一覧を取得するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(workspace_path):
+            os.makedirs(workspace_path)
+        
+        # クエリパラメータからサブディレクトリを取得
+        subdir = request.args.get('dir', '')
+        
+        # 最終的なパス
+        current_path = os.path.normpath(os.path.join(workspace_path, subdir))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not current_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid directory path'}), 400
+        
+        # ディレクトリが存在しない場合はエラー
+        if not os.path.exists(current_path) or not os.path.isdir(current_path):
+            return jsonify({'error': 'Directory not found'}), 404
+        
+        # ディレクトリ内の項目をスキャン
+        files = []
+        dirs = []
+        
+        for item in os.listdir(current_path):
+            item_path = os.path.join(current_path, item)
+            rel_path = os.path.relpath(item_path, workspace_path)
+            
+            if os.path.isdir(item_path):
+                dirs.append({
+                    'name': item,
+                    'path': rel_path,
+                    'type': 'directory',
+                    'modified_at': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat()
+                })
+            else:
+                try:
+                    with open(item_path, 'r', encoding='utf-8') as f:
+                        content_preview = f.read(200)  # 最初の200文字をプレビュー
+                except:
+                    content_preview = ""  # テキストでない場合は空
+                
+                files.append({
+                    'name': item,
+                    'path': rel_path,
+                    'type': 'file',
+                    'size': os.path.getsize(item_path),
+                    'modified_at': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat(),
+                    'preview': content_preview
+                })
+        
+        # 現在のディレクトリ情報
+        current_dir_info = {
+            'path': os.path.relpath(current_path, workspace_path) if current_path != workspace_path else "",
+            'parent': os.path.relpath(os.path.dirname(current_path), workspace_path) if current_path != workspace_path else None
+        }
+        
+        return jsonify({
+            'current_dir': current_dir_info,
+            'directories': sorted(dirs, key=lambda x: x['name']),
+            'files': sorted(files, key=lambda x: x['name'])
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error listing workspace files: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/file', methods=['GET'])
+def get_workspace_file():
+    """WorkSpaceディレクトリ内のファイル内容を取得するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # ファイルパスを取得
+        file_path = request.args.get('path', '')
+        if not file_path:
+            return jsonify({'error': 'File path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, file_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid file path'}), 400
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        # ファイルサイズが大きすぎる場合はエラー
+        if os.path.getsize(full_path) > 5 * 1024 * 1024:  # 5MB制限
+            return jsonify({'error': 'File is too large to read'}), 400
+        
+        # ファイル内容を読み込む
+        try:
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            # テキストでない場合はバイナリとして扱う
+            return jsonify({'error': 'File is not a text file'}), 400
+        
+        # ファイル情報
+        file_info = {
+            'name': os.path.basename(full_path),
+            'path': file_path,
+            'size': os.path.getsize(full_path),
+            'modified_at': datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat(),
+            'content': content
+        }
+        
+        return jsonify({'file': file_info})
+    
+    except Exception as e:
+        logger.exception(f"Error reading workspace file: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/file', methods=['POST'])
+def create_workspace_file():
+    """WorkSpaceディレクトリ内にファイルを作成するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        data = request.json
+        file_path = data.get('path', '')
+        content = data.get('content', '')
+        
+        if not file_path:
+            return jsonify({'error': 'File path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(workspace_path):
+            os.makedirs(workspace_path)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, file_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid file path'}), 400
+        
+        # ディレクトリが存在しない場合は作成
+        dir_path = os.path.dirname(full_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        
+        # ファイルが既に存在する場合はエラー
+        if os.path.exists(full_path):
+            return jsonify({'error': 'File already exists'}), 400
+        
+        # ファイルを作成
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        return jsonify({
+            'status': 'success',
+            'file': {
+                'name': os.path.basename(full_path),
+                'path': file_path,
+                'size': os.path.getsize(full_path),
+                'modified_at': datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error creating workspace file: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/file', methods=['PUT'])
+def update_workspace_file():
+    """WorkSpaceディレクトリ内のファイルを更新するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        data = request.json
+        file_path = data.get('path', '')
+        content = data.get('content', '')
+        
+        if not file_path:
+            return jsonify({'error': 'File path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, file_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid file path'}), 400
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        # ファイルを更新
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        return jsonify({
+            'status': 'success',
+            'file': {
+                'name': os.path.basename(full_path),
+                'path': file_path,
+                'size': os.path.getsize(full_path),
+                'modified_at': datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error updating workspace file: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/file', methods=['DELETE'])
+def delete_workspace_file():
+    """WorkSpaceディレクトリ内のファイルを削除するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # ファイルパスを取得
+        file_path = request.args.get('path', '')
+        if not file_path:
+            return jsonify({'error': 'File path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, file_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid file path'}), 400
+        
+        # ファイルが存在するか確認
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        # ファイルを削除
+        os.remove(full_path)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'File {file_path} deleted successfully'
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error deleting workspace file: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/directory', methods=['POST'])
+def create_workspace_directory():
+    """WorkSpaceディレクトリ内にディレクトリを作成するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        data = request.json
+        dir_path = data.get('path', '')
+        
+        if not dir_path:
+            return jsonify({'error': 'Directory path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(workspace_path):
+            os.makedirs(workspace_path)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, dir_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid directory path'}), 400
+        
+        # ディレクトリが既に存在する場合はエラー
+        if os.path.exists(full_path):
+            return jsonify({'error': 'Directory already exists'}), 400
+        
+        # ディレクトリを作成
+        os.makedirs(full_path)
+        
+        return jsonify({
+            'status': 'success',
+            'directory': {
+                'name': os.path.basename(full_path),
+                'path': dir_path,
+                'modified_at': datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error creating workspace directory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workspace/directory', methods=['DELETE'])
+def delete_workspace_directory():
+    """WorkSpaceディレクトリ内のディレクトリを削除するエンドポイント"""
+    try:
+        # アクティブなプロファイルが必要
+        if not ACTIVE_PROFILE:
+            return jsonify({'error': 'No active profile selected'}), 400
+        
+        # ディレクトリパスを取得
+        dir_path = request.args.get('path', '')
+        if not dir_path:
+            return jsonify({'error': 'Directory path is required'}), 400
+        
+        # WorkSpaceディレクトリパス
+        workspace_path = os.path.join(WORKSPACE_DIR, ACTIVE_PROFILE)
+        
+        # 最終的なパス
+        full_path = os.path.normpath(os.path.join(workspace_path, dir_path))
+        
+        # パスが有効かチェック（ワークスペースディレクトリ外へのアクセスを防止）
+        if not full_path.startswith(workspace_path):
+            return jsonify({'error': 'Invalid directory path'}), 400
+        
+        # WorkSpaceルートディレクトリは削除できない
+        if full_path == workspace_path:
+            return jsonify({'error': 'Cannot delete root workspace directory'}), 400
+        
+        # ディレクトリが存在するか確認
+        if not os.path.exists(full_path) or not os.path.isdir(full_path):
+            return jsonify({'error': 'Directory not found'}), 404
+        
+        # ディレクトリを削除
+        shutil.rmtree(full_path)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Directory {dir_path} deleted successfully'
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error deleting workspace directory: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -871,7 +1607,7 @@ def list_files_from_directory(directory):
 
 if __name__ == '__main__':
     # ディレクトリ存在確認と作成
-    for directory in ['logs', MODELS_DIR, PROFILES_DIR, UPLOAD_FOLDER]:
+    for directory in ['logs', MODELS_DIR, PROFILES_DIR, UPLOAD_FOLDER, WORKSPACE_DIR]:
         if not os.path.exists(directory):
             os.makedirs(directory)
     
@@ -879,6 +1615,7 @@ if __name__ == '__main__':
     logger.info(f"Log level: {log_level}")
     logger.info(f"Models directory: {MODELS_DIR}")
     logger.info(f"Profiles directory: {PROFILES_DIR}")
+    logger.info(f"WorkSpace directory: {WORKSPACE_DIR}")
     
     # llama.cppの実行ファイルの存在確認
     if not os.path.exists(LLAMACPP_MAIN):

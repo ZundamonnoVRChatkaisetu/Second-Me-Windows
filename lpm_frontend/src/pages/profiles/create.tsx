@@ -93,9 +93,16 @@ export default function CreateProfilePage() {
             {/* ヘッダー */}
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-2xl font-bold">第2の自分を作成</h1>
-              <Link href="/profiles" passHref>
-                <Button variant="outline">キャンセル</Button>
-              </Link>
+              <div className="flex space-x-2">
+                <Link href="/profiles/wizard">
+                  <Button variant="secondary">
+                    ウィザード形式で作成
+                  </Button>
+                </Link>
+                <Link href="/profiles" passHref>
+                  <Button variant="outline">キャンセル</Button>
+                </Link>
+              </div>
             </div>
 
             {/* 概要説明 */}
@@ -108,6 +115,9 @@ export default function CreateProfilePage() {
               <p>
                 まずは名前とその目的をつけましょう。例えば、「仕事用アシスタント」や「創作アイデア発想」など、
                 用途に合わせた第2の自分を作ることができます。
+              </p>
+              <p className="mt-2 text-sm">
+                より詳細な設定は<Link href="/profiles/wizard" className="underline">ウィザード形式</Link>で行うことができます。
               </p>
             </div>
 

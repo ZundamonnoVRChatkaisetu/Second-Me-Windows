@@ -26,16 +26,43 @@ cors = CORS(
     app, 
     resources={r"/api/*": {"origins": "*"}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    max_age=3600
 )
 
 # すべてのレスポンスにCORSヘッダーを追加
 @app.after_request
 def add_cors_headers(response):
+    # すでにヘッダーがある場合は上書きしない
+    if 'Access-Control-Allow-Origin' not in response.headers:
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    
+    if 'Access-Control-Allow-Headers' not in response.headers:
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+    
+    if 'Access-Control-Allow-Methods' not in response.headers:
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    
+    # キャッシュ制御を追加
+    if 'Access-Control-Max-Age' not in response.headers:
+        response.headers.add('Access-Control-Max-Age', '3600')
+    
+    # ログ出力（デバッグ用）
+    logger.debug(f"Response headers: {dict(response.headers)}")
+    
+    return response
+
+# OPTIONSリクエストに対するグローバルハンドラ
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """すべてのOPTIONSリクエストに対して適切なCORSレスポンスを返す"""
+    response = make_response()
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Max-Age', '3600')
     return response
 
 # アップロード設定
@@ -112,15 +139,6 @@ if __name__ == '__main__':
             logger.info("No profiles found, will create default profile if needed")
     except Exception as e:
         logger.warning(f"Error scanning profiles directory: {str(e)}")
-    
-    # OPTIONS リクエストのためのハンドラを追加
-    @app.route('/api/profiles/activate', methods=['OPTIONS'])
-    def options_profiles_activate():
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        return response
     
     # Flaskアプリケーション起動
     app.run(host='0.0.0.0', port=PORT, debug=False)

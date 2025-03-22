@@ -2,7 +2,7 @@
 
 ## エラー分析
 
-現在発生しているエラーは以下の2つに集約されます：
+現在発生しているエラーは以下に集約されます：
 
 ### 1. React JSXレンダリングエラー
 ```
@@ -17,6 +17,13 @@ SyntaxError: Identifier 'createProxyMiddleware' has already been declared
 ```
 - 影響範囲: バックエンドとフロントエンドの通信
 - 原因: cors-anywhere.jsファイル内での重複宣言
+
+### 3. UI依存関係のエラー
+```
+Module not found: Can't resolve 'class-variance-authority'
+```
+- 影響範囲: UIコンポーネントのレンダリング
+- 原因: shadcn/ui関連のパッケージが不足している
 
 ## 修正内容
 
@@ -43,11 +50,20 @@ SyntaxError: Identifier 'createProxyMiddleware' has already been declared
   + "eslint-config-next": "13.5.6",
   ```
 
-### 3. 依存関係の再インストール用スクリプトを追加
+### 3. UI依存関係の追加
+- shadcn/uiコンポーネントに必要なパッケージを追加
+- 追加したパッケージ：
+  ```diff
+  + "class-variance-authority": "^0.7.0",
+  + "clsx": "^2.1.0",
+  + "tailwind-merge": "^2.2.1",
+  ```
+
+### 4. 依存関係の再インストール用スクリプトを追加
 - `lpm_frontend/reinstall-deps.bat`を作成
 - 機能：node_modules、package-lock.jsonを削除し、依存関係を再インストール
 
-### 4. 改善されたスタートアップスクリプトを追加
+### 5. 改善されたスタートアップスクリプトを追加
 - `start-fixed.bat`を作成
 - 追加機能：
   - 環境変数の適切な設定（NODE_ENV問題への対応）
@@ -77,3 +93,4 @@ SyntaxError: Identifier 'createProxyMiddleware' has already been declared
 ## 参考リソース
 - [Next.js非標準NODE_ENVの問題](https://nextjs.org/docs/messages/non-standard-node-env)
 - [React 18とNext.js互換性](https://nextjs.org/docs/upgrading)
+- [shadcn/ui公式ドキュメント](https://ui.shadcn.com/)

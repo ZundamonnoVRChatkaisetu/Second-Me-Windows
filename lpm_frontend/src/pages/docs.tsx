@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Layout } from '@/components/Layout';
+import Layout from '../components/Layout';
 
 // サイドバーのカテゴリーとトピックのデータ構造
 interface Topic {
@@ -573,11 +573,11 @@ const DocsPage = () => {
                   </tr>
                   <tr>
                     <td className="border border-gray-300 px-4 py-2">Permission denied</td>
-                    <td className="border border-gray-300 px-4 py-2"><code>fix-permissions.bat</code>を実行するか、管理者権限でコマンドプロンプトを開いて実行。</td>
+                    <td className="border border-gray-300 px-4 py-2">管理者権限でコマンドプロンプトを開いて実行。</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-300 px-4 py-2">ModuleNotFoundError</td>
-                    <td className="border border-gray-300 px-4 py-2"><code>fix-requirements.bat</code>を実行して不足しているPythonパッケージをインストール。</td>
+                    <td className="border border-gray-300 px-4 py-2">不足しているPythonパッケージをインストール。</td>
                   </tr>
                 </tbody>
               </table>
@@ -623,40 +623,6 @@ const DocsPage = () => {
                 </div>
               </div>
               
-              <div className="mt-4">
-                <h3 className="text-lg font-semibold">run-manual.bat</h3>
-                <div className="pl-5">
-                  <p><strong>目的:</strong> コンポーネントを個別に手動で起動し、エラーメッセージを詳細に表示します。</p>
-                  <p><strong>使用方法:</strong></p>
-                  <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
-                    <code>run-manual.bat</code>
-                  </pre>
-                  <p>このスクリプトは対話式で、起動するコンポーネントを選択できます。</p>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <h3 className="text-lg font-semibold">run-backend-console.bat</h3>
-                <div className="pl-5">
-                  <p><strong>目的:</strong> バックエンドを詳細なログモードで起動し、すべての操作とエラーを表示します。</p>
-                  <p><strong>使用方法:</strong></p>
-                  <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
-                    <code>run-backend-console.bat</code>
-                  </pre>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <h3 className="text-lg font-semibold">fix-permissions.bat</h3>
-                <div className="pl-5">
-                  <p><strong>目的:</strong> ファイルとディレクトリのアクセス権限に関する問題を修正します。</p>
-                  <p><strong>使用方法:</strong></p>
-                  <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
-                    <code>fix-permissions.bat</code>
-                  </pre>
-                </div>
-              </div>
-              
               <h2 className="text-xl font-semibold mt-6">ログファイル</h2>
               <p>
                 Second Meは様々なログファイルを生成し、問題の診断に役立てることができます。
@@ -692,13 +658,6 @@ const DocsPage = () => {
                     DEBUG=true
                     <br/>
                     LOG_LEVEL=debug
-                  </code>
-                </pre>
-                
-                <p><strong>方法2: 起動時にデバッグフラグを使用</strong></p>
-                <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
-                  <code>
-                    run-simple-backend.bat --debug
                   </code>
                 </pre>
                 

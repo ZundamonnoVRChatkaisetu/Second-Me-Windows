@@ -2,9 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ライトモードとダークモードの変数設定 */
+:root {
+  /* カラーテーマ変数 */
+  --primary-color: #3b82f6; /* 青色 */
+  --secondary-color: #1d4ed8; /* 濃い青 */
+  --accent-color: #f59e0b; /* オレンジ */
+  
+  /* 背景色 */
+  --background-light: #ffffff;
+  --background-dark: #121212;
+  
+  /* テキスト色 */
+  --foreground-light: #111827;
+  --foreground-dark: #f3f4f6;
+  
+  /* カード背景 */
+  --card-background-light: #ffffff;
+  --card-background-dark: #1f2937;
+  
+  /* 入力フィールド背景 */
+  --input-background-light: #f9fafb;
+  --input-background-dark: #374151;
+  
+  /* ボーダー色 */
+  --border-light: #e5e7eb;
+  --border-dark: #4b5563;
+}
+
+/* ダークモード設定 */
+.dark {
+  --primary-color: #60a5fa; /* 明るい青色 */
+  --secondary-color: #93c5fd; /* もっと明るい青色 */
+  --accent-color: #fbbf24; /* 明るいオレンジ */
+}
+
 /* カスタム背景色 */
 .bg-cream-50 {
   background-color: #FFFBF5;
+}
+
+/* ダークモード対応クラス */
+.bg-adaptive {
+  @apply bg-white dark:bg-gray-900;
+}
+
+.text-adaptive {
+  @apply text-gray-900 dark:text-gray-100;
+}
+
+.border-adaptive {
+  @apply border-gray-200 dark:border-gray-700;
+}
+
+.card-adaptive {
+  @apply bg-white dark:bg-gray-800 shadow-md;
+}
+
+.input-adaptive {
+  @apply bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600;
 }
 
 /* アニメーションとトランジションクラス */
@@ -28,12 +84,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
+  @apply bg-gray-400 dark:bg-gray-600;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background-color: rgba(229, 231, 235, 0.5);
+  @apply bg-gray-200 dark:bg-gray-800;
   border-radius: 4px;
 }
 
@@ -54,13 +110,13 @@
 
 /* バックグラウンドパターン */
 .dots-pattern {
-  background-image: radial-gradient(#3b82f6 1px, transparent 1px);
+  background-image: radial-gradient(var(--primary-color) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
 /* グラデーションテキスト */
 .gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-blue-700;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-blue-700 dark:from-blue-400 dark:to-blue-600;
 }
 
 /* リップル効果 */
@@ -78,7 +134,7 @@
   top: 0;
   left: 0;
   pointer-events: none;
-  background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.7) 10%, transparent 10.01%);
   background-repeat: no-repeat;
   background-position: 50%;
   transform: scale(10, 10);
@@ -112,7 +168,7 @@
 .bubble-1 {
   width: 60px;
   height: 60px;
-  background-color: rgba(59, 130, 246, 0.1);
+  @apply bg-blue-500/10 dark:bg-blue-400/10;
   top: 10%;
   left: 10%;
   animation: float 8s ease-in-out infinite;
@@ -121,7 +177,7 @@
 .bubble-2 {
   width: 80px;
   height: 80px;
-  background-color: rgba(99, 102, 241, 0.1);
+  @apply bg-indigo-500/10 dark:bg-indigo-400/10;
   top: 50%;
   right: 10%;
   animation: float 6s ease-in-out infinite;
@@ -130,7 +186,7 @@
 .bubble-3 {
   width: 40px;
   height: 40px;
-  background-color: rgba(139, 92, 246, 0.1);
+  @apply bg-purple-500/10 dark:bg-purple-400/10;
   bottom: 10%;
   left: 20%;
   animation: float 10s ease-in-out infinite;
@@ -150,7 +206,8 @@
 
 /* カスタムヒーロー背景 */
 .hero-bg {
-  background-image: url('/images/pattern.svg'), linear-gradient(to bottom, #F0F9FF, #EFF6FF);
+  @apply bg-gradient-to-b from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800;
+  background-image: url('/images/pattern.svg');
   background-size: cover;
   background-position: center;
 }
@@ -196,4 +253,24 @@
   100% {
     transform: scale(1);
   }
+}
+
+/* テーマ切り替えトランジション */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* ダークモード用ページ背景 */
+.page-background {
+  @apply bg-gray-50 dark:bg-gray-900;
+}
+
+/* ダークモード用テキスト */
+.page-text {
+  @apply text-gray-900 dark:text-gray-100;
+}
+
+/* ダークモード用カード */
+.card {
+  @apply bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-800/30;
 }

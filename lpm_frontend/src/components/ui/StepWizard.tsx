@@ -12,6 +12,8 @@ interface StepWizardProps {
   submitButtonText?: string;
   cancelButtonText?: string;
   onCancel?: () => void;
+  formData?: any; // 追加: 親コンポーネントから渡されるフォームデータ
+  updateFormData?: (data: any) => void; // 追加: 親コンポーネントのフォームデータ更新関数
 }
 
 /**
@@ -25,11 +27,20 @@ const StepWizard: React.FC<StepWizardProps> = ({
   submitButtonText = '完了',
   cancelButtonText = 'キャンセル',
   onCancel,
+  formData: parentFormData, // 親コンポーネントから渡されるフォームデータ
+  updateFormData: parentUpdateFormData, // 親コンポーネントのフォームデータ更新関数
 }) => {
   const [currentStep, setCurrentStep] = useState(initialStep);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, any>>(parentFormData || {});
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // 親コンポーネントのフォームデータが変更された場合に同期
+  useEffect(() => {
+    if (parentFormData) {
+      setFormData(parentFormData);
+    }
+  }, [parentFormData]);
 
   // ステップの移動
   const goToStep = (step: number) => {
@@ -65,7 +76,7 @@ const StepWizard: React.FC<StepWizardProps> = ({
       setCurrentStep(currentStep + 1);
     } else {
       // 最後のステップであれば完了ハンドラーを実行
-      onComplete && onComplete(formData);
+      onComplete && onComplete(parentFormData || formData);
     }
   };
 
@@ -78,8 +89,13 @@ const StepWizard: React.FC<StepWizardProps> = ({
   };
 
   // 入力データを更新する関数（子コンポーネントに渡す）
-  const updateFormData = (update: Record<string, any>) => {
-    setFormData(prev => ({ ...prev, ...update }));
+  const updateLocalFormData = (update: Record<string, any>) => {
+    // 親コンポーネントの更新関数がある場合はそちらも呼び出す
+    if (parentUpdateFormData) {
+      parentUpdateFormData(update);
+    } else {
+      setFormData(prev => ({ ...prev, ...update }));
+    }
   };
 
   // ステップリストの表示
@@ -118,8 +134,8 @@ const StepWizard: React.FC<StepWizardProps> = ({
   // クローン化して子コンポーネントにpropsを渡す
   const currentStepComponent = React.isValidElement(steps[currentStep].component)
     ? React.cloneElement(steps[currentStep].component as React.ReactElement, {
-        formData,
-        updateFormData,
+        formData: parentFormData || formData,
+        updateFormData: updateLocalFormData,
       })
     : steps[currentStep].component;
 

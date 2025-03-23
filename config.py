@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ロギングの設定
-log_level = os.getenv('LOG_LEVEL', 'INFO')
+log_level = os.getenv('LOG_LEVEL', 'INFO').strip()  # 余分なスペースを除去
 logging.basicConfig(
     level=getattr(logging, log_level),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

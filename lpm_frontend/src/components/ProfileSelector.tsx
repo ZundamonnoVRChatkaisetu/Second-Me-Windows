@@ -14,6 +14,9 @@ interface Profile {
   active: boolean;
 }
 
+// バックエンドのURLを取得
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8002';
+
 /**
  * プロファイル一覧を取得し、選択・作成・管理できるUIを提供するコンポーネント
  */
@@ -37,7 +40,8 @@ const ProfileSelector: React.FC = () => {
       setError(null);
       
       console.log("Fetching profiles from API...");
-      const response = await axios.get('/api/profiles');
+      // 完全なURLを使用
+      const response = await axios.get(`${BACKEND_URL}/api/profiles`);
       console.log("Profiles response:", response.data);
       
       const profilesList = response.data.profiles || [];
@@ -73,53 +77,73 @@ const ProfileSelector: React.FC = () => {
         }
       };
       
-      // リクエスト本文 - 両方のエンドポイントで使われるフィールド名を含める
-      const requestData = { 
-        profile_id: profileId,
-        id: profileId  // 一部のバックエンドエンドポイントが id をサポート
-      };
+      // リクエスト本文 - profile_idフィールドを使用
+      const requestData = { profile_id: profileId };
       
       console.log("Request data:", requestData);
       console.log("Request config:", requestConfig);
       
+      // /api/profiles/selectエンドポイントを直接呼び出し
       try {
-        // selectエンドポイントを最初に試す (より信頼性が高い)
-        await axios.post('/api/profiles/select', requestData, requestConfig)
-          .then(response => {
-            console.log("Profile selection response:", response);
-            // 選択成功
-          })
-          .catch(async (selectErr) => {
-            console.warn("Profile select endpoint failed, trying activate endpoint:", selectErr);
-            // selectが失敗した場合はactivateを試す
-            const activateResponse = await axios.post('/api/profiles/activate', requestData, requestConfig);
-            console.log("Profile activation response:", activateResponse);
-          });
+        const selectResponse = await axios.post(
+          `${BACKEND_URL}/api/profiles/select`, 
+          requestData, 
+          requestConfig
+        );
+        console.log("Profile selection response:", selectResponse);
         
-        // 選択状態を更新
-        setProfiles(prevProfiles => prevProfiles.map(profile => ({
-          ...profile,
-          active: profile.id === profileId
-        })));
+        // 選択成功 - クライアント側の状態を更新
+        setProfiles(prevProfiles => 
+          prevProfiles.map(profile => ({
+            ...profile,
+            active: profile.id === profileId
+          }))
+        );
         
         setActiveProfileId(profileId);
         
         const activeProfile = profiles.find(p => p.id === profileId);
-        setSuccess(`プロファイル「${activeProfile?.name || profileId}」をアクティブにしました`);
+        setSuccess(`プロファイル「${activeProfile?.name || profileId}」を選択しました。ページをリロードします...`);
         
-        // 3秒後に成功メッセージを非表示
-        setTimeout(() => setSuccess(null), 3000);
+        // 変更が確実に反映されるよう、少し待ってからページをリロード
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
         
-        // 変更が反映されるようにプロファイル一覧を再取得
-        fetchProfiles();
-      } catch (axiosErr: any) {
-        console.error("Axios error details:", {
-          message: axiosErr.message,
-          response: axiosErr.response,
-          request: axiosErr.request,
-          config: axiosErr.config
-        });
-        throw axiosErr;
+      } catch (selectErr) {
+        console.warn("Profile select endpoint failed:", selectErr);
+        
+        // selectが失敗した場合はactivateを試す
+        try {
+          const activateResponse = await axios.post(
+            `${BACKEND_URL}/api/profiles/activate`, 
+            requestData, 
+            requestConfig
+          );
+          console.log("Profile activation response:", activateResponse);
+          
+          // activateが成功した場合も同様に状態を更新
+          setProfiles(prevProfiles => 
+            prevProfiles.map(profile => ({
+              ...profile,
+              active: profile.id === profileId
+            }))
+          );
+          
+          setActiveProfileId(profileId);
+          
+          const activeProfile = profiles.find(p => p.id === profileId);
+          setSuccess(`プロファイル「${activeProfile?.name || profileId}」をアクティブにしました。ページをリロードします...`);
+          
+          // 変更が確実に反映されるよう、少し待ってからページをリロード
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+          
+        } catch (activateErr: any) {
+          console.error("Both endpoints failed:", activateErr);
+          throw activateErr;
+        }
       }
     } catch (err: any) {
       console.error('Failed to activate profile:', err);
@@ -131,9 +155,17 @@ const ProfileSelector: React.FC = () => {
           status: err.response.status,
           headers: err.response.headers
         });
+        
+        // サーバーからのエラーメッセージがあれば表示
+        const serverError = err.response.data?.error;
+        if (serverError) {
+          setError(`プロファイル選択エラー: ${serverError}`);
+        } else {
+          setError('プロファイルのアクティブ化に失敗しました。サーバーログを確認してください。');
+        }
+      } else {
+        setError('サーバーに接続できません。バックエンドが起動しているか確認してください。');
       }
-      
-      setError('プロファイルのアクティブ化に失敗しました。サーバーログを確認してください。');
     } finally {
       setActivating(false);
     }
@@ -225,7 +257,7 @@ const ProfileSelector: React.FC = () => {
                         disabled={activating}
                         className="px-3 py-1 text-xs"
                       >
-                        使用する
+                        {activating ? '処理中...' : '使用する'}
                       </Button>
                     )}
                     <Button

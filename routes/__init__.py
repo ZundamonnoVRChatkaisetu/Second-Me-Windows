@@ -13,6 +13,16 @@ def register_routes(app: Flask):
     # 各ルートモジュールを個別にインポートしてエラーハンドリング
     modules_registered = 0
     
+    # 最優先: profile_debugエンドポイント（問題診断用）
+    try:
+        from routes import profile_debug
+        profile_debug.register_routes(app)
+        logger.info("Profile debug routes registered successfully")
+        modules_registered += 1
+    except Exception as e:
+        logger.error(f"Failed to register profile_debug routes: {str(e)}")
+        logger.error(traceback.format_exc())
+    
     # health エンドポイント
     try:
         from routes import health
@@ -109,7 +119,7 @@ def register_routes(app: Flask):
         
         @app.route('/api/profiles', methods=['GET', 'OPTIONS'])
         def get_profiles_fallback():
-            from flask import jsonify, make_response
+            from flask import jsonify, make_response, request
             if request.method == 'OPTIONS':
                 response = make_response()
                 response.headers.add('Access-Control-Allow-Origin', '*')

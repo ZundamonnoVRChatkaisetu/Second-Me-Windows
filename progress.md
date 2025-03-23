@@ -117,6 +117,21 @@ SyntaxError: Invalid or unexpected token
   - 一般的な問題のトラブルシューティング
   - サービス管理方法の説明
 
+### 9. バックエンド接続専用ツールの開発（新規）
+- `connect-backend.bat` - バックエンド接続に特化した専用ツール
+  - 自動的にCORSプロキシを設定
+  - バックエンドとプロキシを一括起動
+  - 環境変数を正しく設定
+  - アスキー文字のみを使用したエラーメッセージでの文字化け防止
+
+### 10. 不要なbatファイルの整理（新規）
+- 以下の空のbatファイルについてissue #1で削除推奨
+  - fix-permissions.bat
+  - fix-requirements.bat
+  - foreground-backend.bat
+  - foreground-frontend.bat
+  - simple-start.bat
+
 ## 使用方法
 
 ### 推奨方法: 統合起動スクリプト
@@ -133,6 +148,13 @@ start-backend-only.bat
 ```
 これにより、バックエンドサーバーが直接コンソールで起動され、エラーメッセージをリアルタイムで確認できます。
 
+### バックエンド接続のみの場合（新規）
+バックエンドのみを起動し、CORSプロキシを経由して接続する場合：
+```
+connect-backend.bat
+```
+このスクリプトは、バックエンドとCORSプロキシの起動に特化しており、フロントエンドのUI起動は行いません。
+
 ### すべてのサービスを停止
 ```
 taskkill /f /fi "WINDOWTITLE eq Second-Me*"
@@ -145,10 +167,11 @@ taskkill /f /fi "WINDOWTITLE eq Second-Me*"
 | jsxDEV is not a function | React/Next.jsの互換性 | Next.jsを13.5.6にダウングレード |
 | createProxyMiddleware has already been declared | CORSスクリプトの重複宣言 | CORSプロキシファイルを再生成 |
 | Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
-| ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | launch-windows.batを使用して起動 |
+| ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | launch-windows.batまたはconnect-backend.batを使用して起動 |
 | Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
 
 ## 今後の課題
 - llama-serverとの連携強化
 - ローカライズの改善
 - インストールプロセスの自動化
+- Windows専用のフロントエンド環境自動設定スクリプトの開発

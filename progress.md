@@ -39,7 +39,14 @@ SyntaxError: Invalid or unexpected token
 - 影響範囲: CORSプロキシの起動
 - 原因: CORSプロキシスクリプト内の日本語文字列が文字化けしている
 
-### 6. 複数コマンドウィンドウ問題
+### 6. モデルサイズ表示エラー（新規）
+```
+TypeError: Cannot read properties of undefined (reading 'toFixed')
+```
+- 影響範囲: モデル選択UIの表示
+- 原因: モデルサイズ情報がundefinedの場合の処理が不適切
+
+### 7. 複数コマンドウィンドウ問題
 - 影響範囲: 使用体験
 - 原因: 各サービスが個別のウィンドウで起動する設計
 
@@ -86,7 +93,22 @@ SyntaxError: Invalid or unexpected token
   + error: 'Could not connect to backend service. Please check if the service is running.',
   ```
 
-### 5. Pythonバックエンド起動問題の解決
+### 5. モデルサイズ表示エラーの修正（新規）
+- `ModelSelector.tsx`ファイルの`formatSize`関数を修正し、undefinedチェックを追加
+- 変更内容：
+  ```diff
+  - const formatSize = (gigabytes: number): string => {
+  -   return `${gigabytes.toFixed(2)} GB`;
+  - };
+  + const formatSize = (gigabytes: number | undefined): string => {
+  +   if (gigabytes === undefined || gigabytes === null) {
+  +     return "サイズ不明";
+  +   }
+  +   return `${gigabytes.toFixed(2)} GB`;
+  + };
+  ```
+
+### 6. Pythonバックエンド起動問題の解決
 - 環境変数の適切な設定
   ```
   set PYTHONIOENCODING=utf-8
@@ -98,7 +120,7 @@ SyntaxError: Invalid or unexpected token
   pip install flask flask-cors python-dotenv
   ```
 
-### 6. 新しい統合起動システムの開発
+### 7. 新しい統合起動システムの開発
 - `launch-windows.bat` - 完全な統合起動スクリプト
   - すべての依存関係チェック
   - Pythonバックエンドの正しい起動
@@ -106,25 +128,25 @@ SyntaxError: Invalid or unexpected token
   - サービス状態の確認機能
   - 詳細なログ機能
 
-### 7. デバッグ用ツールの追加
+### 8. デバッグ用ツールの追加
 - `start-backend-only.bat` - バックエンドのみを起動するスクリプト
   - バックエンドの問題を診断する際に便利
   - コンソール出力でリアルタイムのログを表示
 
-### 8. ユーザーガイドの改善
+### 9. ユーザーガイドの改善
 - `START-HERE.md` - ユーザーフレンドリーな起動ガイド
   - 推奨される起動方法の解説
   - 一般的な問題のトラブルシューティング
   - サービス管理方法の説明
 
-### 9. バックエンド接続専用ツールの開発（新規）
+### 10. バックエンド接続専用ツールの開発
 - `connect-backend.bat` - バックエンド接続に特化した専用ツール
   - 自動的にCORSプロキシを設定
   - バックエンドとプロキシを一括起動
   - 環境変数を正しく設定
   - アスキー文字のみを使用したエラーメッセージでの文字化け防止
 
-### 10. 不要なbatファイルの整理（新規）
+### 11. 不要なbatファイルの整理
 - 以下の空のbatファイルについてissue #1で削除推奨
   - fix-permissions.bat
   - fix-requirements.bat
@@ -148,7 +170,7 @@ start-backend-only.bat
 ```
 これにより、バックエンドサーバーが直接コンソールで起動され、エラーメッセージをリアルタイムで確認できます。
 
-### バックエンド接続のみの場合（新規）
+### バックエンド接続のみの場合
 バックエンドのみを起動し、CORSプロキシを経由して接続する場合：
 ```
 connect-backend.bat
@@ -169,6 +191,7 @@ taskkill /f /fi "WINDOWTITLE eq Second-Me*"
 | Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
 | ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | launch-windows.batまたはconnect-backend.batを使用して起動 |
 | Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
+| Cannot read properties of undefined (reading 'toFixed') | モデルサイズがundefined | undefinedチェックを含む修正版のModelSelector.tsxを使用 |
 
 ## 今後の課題
 - llama-serverとの連携強化

@@ -27,11 +27,26 @@ const ProfileSelector: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [activating, setActivating] = useState<boolean>(false);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [autoRetry, setAutoRetry] = useState<boolean>(true);
 
   // コンポーネント初期化時にプロファイル一覧を取得
   useEffect(() => {
     fetchProfiles();
   }, []);
+
+  // 自動リトライのためのeffect
+  useEffect(() => {
+    if (autoRetry && retryCount < 3 && error) {
+      const timer = setTimeout(() => {
+        console.log(`Retrying profile fetch attempt ${retryCount + 1}...`);
+        fetchProfiles();
+        setRetryCount(prev => prev + 1);
+      }, 2000); // 2秒後にリトライ
+      
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount, autoRetry]);
 
   // プロファイル一覧を取得する関数
   const fetchProfiles = async () => {
@@ -40,11 +55,28 @@ const ProfileSelector: React.FC = () => {
       setError(null);
       
       console.log("Fetching profiles from API...");
-      // 完全なURLを使用
-      const response = await axios.get(`${BACKEND_URL}/api/profiles`);
+      // 完全なURLを使用し、タイムアウトを長めに設定
+      const response = await axios.get(`${BACKEND_URL}/api/profiles`, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
       console.log("Profiles response:", response.data);
       
       const profilesList = response.data.profiles || [];
+      
+      if (profilesList.length === 0) {
+        console.log("No profiles found, checking if backend is creating default profile...");
+        // 少し待ってから再度取得を試みる
+        setTimeout(() => {
+          fetchProfiles();
+        }, 2000);
+        return;
+      }
+      
       setProfiles(profilesList);
       
       // アクティブなプロファイルを特定
@@ -52,9 +84,28 @@ const ProfileSelector: React.FC = () => {
       if (activeProfile) {
         setActiveProfileId(activeProfile.id);
       }
+      
+      // 自動リトライをリセット
+      setRetryCount(0);
+      setAutoRetry(false);
     } catch (err: any) {
       console.error('Failed to fetch profiles:', err);
-      setError('プロファイルの取得に失敗しました。サーバーが起動していることを確認してください。');
+      
+      // より詳細なエラーメッセージを生成
+      let errorMsg = 'プロファイルの取得に失敗しました。';
+      
+      if (err.response) {
+        // サーバーからのレスポンスがある場合
+        errorMsg += ` サーバーエラー: ${err.response.status} - ${err.response.data?.error || 'Unknown error'}`;
+      } else if (err.request) {
+        // リクエストは送信されたがレスポンスがない場合
+        errorMsg += ' サーバーが応答していません。バックエンドが起動していることを確認してください。';
+      } else {
+        // リクエストの設定時に問題が発生した場合
+        errorMsg += ` エラー詳細: ${err.message}`;
+      }
+      
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -74,7 +125,8 @@ const ProfileSelector: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
-        }
+        },
+        timeout: 10000
       };
       
       // リクエスト本文 - profile_idフィールドを使用
@@ -171,6 +223,12 @@ const ProfileSelector: React.FC = () => {
     }
   };
 
+  // 手動で再取得する関数
+  const handleRetry = () => {
+    setError(null);
+    fetchProfiles();
+  };
+
   // プロファイル作成ページに移動
   const goToCreateProfile = () => {
     window.location.href = '/profiles/create';
@@ -195,13 +253,30 @@ const ProfileSelector: React.FC = () => {
   return (
     <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium">第2の自分（プロファイル）</h3>
-        <Button
-          onClick={goToCreateProfile}
-          className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700"
-        >
-          + 新規作成
-        </Button>
+        <div>
+          <h3 className="text-lg font-medium">第2の自分（プロファイル）</h3>
+          {!loading && !error && profiles.length > 0 && (
+            <p className="text-sm text-gray-500">
+              {profiles.length}件のプロファイルが利用可能です
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {error && (
+            <Button
+              onClick={handleRetry}
+              className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700"
+            >
+              再取得
+            </Button>
+          )}
+          <Button
+            onClick={goToCreateProfile}
+            className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700"
+          >
+            + 新規作成
+          </Button>
+        </div>
       </div>
       
       {loading ? (

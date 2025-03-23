@@ -6,24 +6,24 @@ echo Second Me - Windows クイックフィックス起動スクリプト
 echo ===================================================
 
 REM 環境設定
-set PORT=8002
+set BACKEND_PORT=8002
 set FRONTEND_PORT=3000
 set VENV_NAME=second-me-venv
 if exist .env (
   for /F "tokens=1,2 delims==" %%a in (.env) do (
     if "%%a"=="VENV_NAME" set VENV_NAME=%%b
-    if "%%a"=="LOCAL_APP_PORT" set PORT=%%b
+    if "%%a"=="LOCAL_APP_PORT" set BACKEND_PORT=%%b
   )
 )
 
 REM 既存のポート使用状況を確認
 echo ポートの使用状況を確認しています...
 set PORT_IN_USE=0
-netstat -ano | findstr :%PORT% > nul
+netstat -ano | findstr :%BACKEND_PORT% > nul
 if %ERRORLEVEL% EQU 0 (
   set PORT_IN_USE=1
-  echo 警告: ポート %PORT% は既に使用されています。プロセスの終了を試みます。
-  for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT%') do (
+  echo 警告: ポート %BACKEND_PORT% は既に使用されています。プロセスの終了を試みます。
+  for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%BACKEND_PORT%') do (
     echo PID %%a のプロセスを終了しています...
     taskkill /F /PID %%a > nul 2>&1
   )
@@ -70,7 +70,7 @@ ping 127.0.0.1 -n 6 > nul
 
 REM バックエンド接続テスト
 echo バックエンド接続をテストしています...
-curl -s http://localhost:%PORT%/health > nul
+curl -s http://localhost:%BACKEND_PORT%/health > nul
 if %ERRORLEVEL% NEQ 0 (
   echo 警告: バックエンド接続テストに失敗しました。サーバーが起動しているか確認してください。
   echo バックエンドの起動を再試行します...
@@ -79,16 +79,38 @@ if %ERRORLEVEL% NEQ 0 (
   ping 127.0.0.1 -n 6 > nul
 )
 
-REM フロントエンドの起動
-echo フロントエンドサーバーを起動しています...
+REM フロントエンドの環境変数を設定
 cd lpm_frontend
-start cmd /k "title Second Me Frontend && color 0B && npm run dev"
+
+REM .env.localファイルの存在チェック
+if not exist .env.local (
+  echo NEXT_PUBLIC_BACKEND_URL=http://localhost:%BACKEND_PORT% > .env.local
+  echo PORT=%FRONTEND_PORT% >> .env.local
+) else (
+  echo .env.localファイルが既に存在します。バックエンドURLを更新します。
+  type nul > .env.local.tmp
+  for /F "tokens=1,* delims==" %%a in (.env.local) do (
+    if "%%a"=="NEXT_PUBLIC_BACKEND_URL" (
+      echo NEXT_PUBLIC_BACKEND_URL=http://localhost:%BACKEND_PORT% >> .env.local.tmp
+    ) else if "%%a"=="PORT" (
+      echo PORT=%FRONTEND_PORT% >> .env.local.tmp
+    ) else (
+      echo %%a=%%b >> .env.local.tmp
+    )
+  )
+  move /y .env.local.tmp .env.local > nul
+)
+
+REM フロントエンドの起動 - ポートを明示的に指定
+echo フロントエンドサーバーを起動しています（ポート: %FRONTEND_PORT%）...
+start cmd /k "title Second Me Frontend && color 0B && npm run dev -- -p %FRONTEND_PORT%"
 cd ..
 
 REM 起動成功メッセージ
 echo ===================================================
 echo Second Me Windows が起動しました！
-echo ブラウザで http://localhost:%FRONTEND_PORT% にアクセスしてください。
+echo バックエンド: http://localhost:%BACKEND_PORT%
+echo フロントエンド: http://localhost:%FRONTEND_PORT%
 echo 接続問題がある場合は http://localhost:%FRONTEND_PORT%/debug にアクセスしてください。
 echo ===================================================
 

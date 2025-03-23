@@ -8,6 +8,7 @@ Second Me Windows バックエンドアプリケーション
 
 import os
 import json
+import traceback
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -24,7 +25,7 @@ app = Flask(__name__)
 # CORSの詳細設定
 cors = CORS(
     app, 
-    resources={r"/api/*": {"origins": "*"}},
+    resources={r"/*": {"origins": "*"}},  # すべてのリソースへのアクセスを許可
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -34,22 +35,15 @@ cors = CORS(
 # すべてのレスポンスにCORSヘッダーを追加
 @app.after_request
 def add_cors_headers(response):
-    # すでにヘッダーがある場合は上書きしない
-    if 'Access-Control-Allow-Origin' not in response.headers:
-        response.headers.add('Access-Control-Allow-Origin', '*')
-    
-    if 'Access-Control-Allow-Headers' not in response.headers:
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
-    
-    if 'Access-Control-Allow-Methods' not in response.headers:
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    
-    # キャッシュ制御を追加
-    if 'Access-Control-Max-Age' not in response.headers:
-        response.headers.add('Access-Control-Max-Age', '3600')
+    # すでにヘッダーがある場合でも常に上書き
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Max-Age', '3600')
     
     # ログ出力（デバッグ用）
-    logger.debug(f"Response headers: {dict(response.headers)}")
+    if log_level == 'DEBUG':
+        logger.debug(f"Response headers: {dict(response.headers)}")
     
     return response
 
@@ -69,8 +63,42 @@ def handle_options(path):
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB制限
 
+# デバッグ用のルート
+@app.route('/')
+def index():
+    """ルートパスへのアクセスに対する応答"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Second Me Windows API Server is running',
+        'version': '1.0.0'
+    })
+
+# エラーハンドラー
+@app.errorhandler(404)
+def not_found(error):
+    """404エラーハンドラー"""
+    return jsonify({
+        'error': 'Not Found',
+        'message': 'The requested URL was not found on the server.'
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    """500エラーハンドラー"""
+    logger.error(f"Internal Server Error: {error}")
+    logger.error(traceback.format_exc())
+    return jsonify({
+        'error': 'Internal Server Error',
+        'message': 'The server encountered an internal error.'
+    }), 500
+
 # ルートを登録
-register_routes(app)
+try:
+    register_routes(app)
+    logger.info("All routes registered successfully")
+except Exception as e:
+    logger.error(f"Error registering routes: {str(e)}")
+    logger.error(traceback.format_exc())
 
 if __name__ == '__main__':
     # ディレクトリ存在確認と作成
@@ -141,4 +169,4 @@ if __name__ == '__main__':
         logger.warning(f"Error scanning profiles directory: {str(e)}")
     
     # Flaskアプリケーション起動
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)

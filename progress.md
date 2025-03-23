@@ -46,7 +46,7 @@ TypeError: Cannot read properties of undefined (reading 'toFixed')
 - 影響範囲: モデル選択UIの表示
 - 原因: モデルサイズ情報がundefinedの場合の処理が不適切
 
-### 7. API エンドポイント不一致エラー（新規）
+### 7. API エンドポイント不一致エラー
 ```
 POST /api/models/set 405 (Method Not Allowed)
 ```
@@ -56,6 +56,13 @@ POST /api/models/set 405 (Method Not Allowed)
 ### 8. 複数コマンドウィンドウ問題
 - 影響範囲: 使用体験
 - 原因: 各サービスが個別のウィンドウで起動する設計
+
+### 9. プロファイル選択問題（新規）
+```
+プロファイル管理から選択しても選択されない
+```
+- 影響範囲: プロファイル管理と切り替え機能
+- 原因: プロファイル選択時の状態が永続化されておらず、サーバー再起動時に選択状態がリセットされる
 
 ## 修正内容
 
@@ -115,7 +122,7 @@ POST /api/models/set 405 (Method Not Allowed)
   + };
   ```
 
-### 6. APIエンドポイント不一致の修正（新規）
+### 6. APIエンドポイント不一致の修正
 - ModelSelector.tsxのエンドポイントを修正してバックエンドと一致させる
   ```diff
   - await axios.post('/api/models/set', { model_path: selectedModelPath });
@@ -182,6 +189,55 @@ POST /api/models/set 405 (Method Not Allowed)
   - foreground-frontend.bat
   - simple-start.bat
 
+### 13. プロファイル選択問題の修正（新規）
+- アクティブプロファイル情報を永続化するシステムを追加
+  ```python
+  # プロファイル情報をJSONファイルに保存
+  def save_active_profile(profile_id, model_path=''):
+      try:
+          data = {
+              'active_profile': profile_id,
+              'model_path': model_path
+          }
+          with open(ACTIVE_PROFILE_FILE, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+          logger.info(f"Active profile saved to file: {profile_id}")
+          return True
+      except Exception as e:
+          logger.error(f"Failed to save active profile: {str(e)}")
+          return False
+  ```
+
+- バックエンド起動時にアクティブプロファイルを読み込む機能を追加
+  ```python
+  # 保存されたアクティブプロファイル情報を読み込む
+  def load_active_profile_info():
+      if not os.path.exists(ACTIVE_PROFILE_FILE):
+          return None, None
+          
+      try:
+          with open(ACTIVE_PROFILE_FILE, 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          profile_id = data.get('active_profile', '')
+          model_path = data.get('model_path', '')
+          logger.info(f"Loaded active profile from file: {profile_id}")
+          return profile_id, model_path
+      except Exception as e:
+          logger.error(f"Failed to load active profile from file: {str(e)}")
+          return None, None
+  ```
+
+- フロントエンドのプロファイル選択後の処理を改善
+  ```javascript
+  // 選択成功後にページを確実にリロード
+  setSuccess(`プロファイル「${activeProfile?.name || profileId}」を選択しました。ページをリロードします...`);
+  
+  // 変更が確実に反映されるよう、少し待ってからページをリロード
+  setTimeout(() => {
+    window.location.reload();
+  }, 1500);
+  ```
+
 ## 使用方法
 
 ### 推奨方法: 統合起動スクリプト
@@ -221,6 +277,7 @@ taskkill /f /fi "WINDOWTITLE eq Second-Me*"
 | Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
 | Cannot read properties of undefined (reading 'toFixed') | モデルサイズがundefined | undefinedチェックを含む修正版のModelSelector.tsxを使用 |
 | 405 Method Not Allowed | API エンドポイントの不一致 | フロントエンドのAPI呼び出しパスをバックエンドと一致させる |
+| プロファイルが選択されない | プロファイル状態の永続化問題 | 修正版のprofiles.pyとconfig.pyを使用 |
 
 ## 今後の課題
 - llama-serverとの連携強化

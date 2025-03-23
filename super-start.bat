@@ -1,8 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: UTF-8コードページに設定
+chcp 65001 > nul
+
 :: タイトル設定
-title Second-Me Windows - スーパースタートツール
+title Second-Me Windows - Super Start Tool
 
 :: カラー設定
 set "INFO=[92m"
@@ -14,7 +17,7 @@ set "BLUE=[94m"
 set "CYAN=[96m"
 
 echo %BOLD%%BLUE%====================================================%RESET%
-echo %BOLD%%BLUE%      Second-Me Windows スーパースタートツール      %RESET%
+echo %BOLD%%BLUE%      Second-Me Windows Super Start Tool      %RESET%
 echo %BOLD%%BLUE%====================================================%RESET%
 echo.
 
@@ -30,63 +33,63 @@ set "LOG_FILE=%LOG_FILE: =0%"
     exit /b
 
 :: 開始時間の記録
-call :log "%INFO%[INFO]%RESET% スーパースタート実行開始: %date% %time%"
+call :log "%INFO%[INFO]%RESET% Super Start execution started: %date% %time%"
 
 :: =============================
 :: 1. 環境チェック
 :: =============================
-call :log "%INFO%[INFO]%RESET% 1. 環境診断を開始します..."
+call :log "%INFO%[INFO]%RESET% 1. Starting environment diagnosis..."
 
 :: Node.jsバージョンチェック
-call :log "%INFO%[INFO]%RESET% Node.jsバージョンをチェック中..."
+call :log "%INFO%[INFO]%RESET% Checking Node.js version..."
 node --version > nul 2>&1
 if %errorlevel% neq 0 (
-    call :log "%ERROR%[ERROR]%RESET% Node.jsがインストールされていません。"
-    call :log "%ERROR%[ERROR]%RESET% https://nodejs.org からNode.jsをインストールしてください。"
+    call :log "%ERROR%[ERROR]%RESET% Node.js is not installed."
+    call :log "%ERROR%[ERROR]%RESET% Please install Node.js from https://nodejs.org."
     goto error_exit
 ) else (
     for /f "tokens=*" %%a in ('node --version') do set NODE_VERSION=%%a
-    call :log "%INFO%[INFO]%RESET% Node.js %NODE_VERSION% が検出されました。"
+    call :log "%INFO%[INFO]%RESET% Node.js %NODE_VERSION% detected."
 )
 
 :: npm バージョンチェック
-call :log "%INFO%[INFO]%RESET% npmバージョンをチェック中..."
+call :log "%INFO%[INFO]%RESET% Checking npm version..."
 for /f "tokens=*" %%a in ('npm --version') do set NPM_VERSION=%%a
-call :log "%INFO%[INFO]%RESET% npm %NPM_VERSION% が検出されました。"
+call :log "%INFO%[INFO]%RESET% npm %NPM_VERSION% detected."
 
 :: Pythonバージョンチェック
-call :log "%INFO%[INFO]%RESET% Pythonバージョンをチェック中..."
+call :log "%INFO%[INFO]%RESET% Checking Python version..."
 python --version > nul 2>&1
 if %errorlevel% neq 0 (
-    call :log "%ERROR%[ERROR]%RESET% Pythonがインストールされていません。"
-    call :log "%ERROR%[ERROR]%RESET% https://www.python.org からPythonをインストールしてください。"
+    call :log "%ERROR%[ERROR]%RESET% Python is not installed."
+    call :log "%ERROR%[ERROR]%RESET% Please install Python from https://www.python.org."
     goto error_exit
 ) else (
     for /f "tokens=*" %%a in ('python --version') do set PYTHON_VERSION=%%a
-    call :log "%INFO%[INFO]%RESET% %PYTHON_VERSION% が検出されました。"
+    call :log "%INFO%[INFO]%RESET% %PYTHON_VERSION% detected."
 )
 
 :: 必要なポートの確認（8002, 8003, 3000）
-call :log "%INFO%[INFO]%RESET% 必要なポートの使用状況を確認中..."
+call :log "%INFO%[INFO]%RESET% Checking required ports..."
 
 :: ポート確認関数
 :check_port
     set "PORT=%~1"
     netstat -ano | findstr ":%PORT% " > nul
     if %errorlevel% equ 0 (
-        call :log "%WARN%[WARN]%RESET% ポート %PORT% は既に使用されています。解放を試みます..."
+        call :log "%WARN%[WARN]%RESET% Port %PORT% is already in use. Attempting to release..."
         for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%PORT% "') do (
             set PID=%%p
-            call :log "%INFO%[INFO]%RESET% ポート %PORT% を使用しているプロセス(PID: !PID!)を終了します..."
+            call :log "%INFO%[INFO]%RESET% Terminating process (PID: !PID!) using port %PORT%..."
             taskkill /F /PID !PID! > nul 2>&1
             if !errorlevel! equ 0 (
-                call :log "%INFO%[INFO]%RESET% プロセスを正常に終了しました。"
+                call :log "%INFO%[INFO]%RESET% Process terminated successfully."
             ) else (
-                call :log "%WARN%[WARN]%RESET% プロセス終了に失敗しました。手動で終了が必要かもしれません。"
+                call :log "%WARN%[WARN]%RESET% Failed to terminate process. Manual termination may be required."
             )
         )
     ) else (
-        call :log "%INFO%[INFO]%RESET% ポート %PORT% は利用可能です。"
+        call :log "%INFO%[INFO]%RESET% Port %PORT% is available."
     )
     exit /b
 
@@ -96,53 +99,53 @@ call :check_port 8003
 call :check_port 3000
 
 :: アクティブプロファイルファイルの確認
-call :log "%INFO%[INFO]%RESET% プロファイル設定を確認中..."
+call :log "%INFO%[INFO]%RESET% Checking profile settings..."
 if exist "active_profile.json" (
-    call :log "%INFO%[INFO]%RESET% アクティブプロファイル設定ファイルが見つかりました。"
+    call :log "%INFO%[INFO]%RESET% Active profile settings file found."
 ) else (
-    call :log "%WARN%[WARN]%RESET% アクティブプロファイル設定ファイルが見つかりません。新規作成されます。"
+    call :log "%WARN%[WARN]%RESET% Active profile settings file not found. Will be created as needed."
 )
 
 :: プロファイルディレクトリの確認
 if not exist "profiles" (
-    call :log "%INFO%[INFO]%RESET% プロファイルディレクトリを作成します..."
+    call :log "%INFO%[INFO]%RESET% Creating profiles directory..."
     mkdir profiles
 )
 
 :: =============================
 :: 2. 依存関係インストール
 :: =============================
-call :log "%INFO%[INFO]%RESET% 2. 依存関係をチェックしています..."
+call :log "%INFO%[INFO]%RESET% 2. Checking dependencies..."
 
 :: Pythonパッケージの確認とインストール
-call :log "%INFO%[INFO]%RESET% Pythonの依存関係をチェック中..."
+call :log "%INFO%[INFO]%RESET% Checking Python dependencies..."
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
-    call :log "%WARN%[WARN]%RESET% Pythonパッケージのインストールに問題がありました。"
+    call :log "%WARN%[WARN]%RESET% There was an issue installing Python packages."
 ) else (
-    call :log "%INFO%[INFO]%RESET% Pythonパッケージが正常にインストールされました。"
+    call :log "%INFO%[INFO]%RESET% Python packages installed successfully."
 )
 
 :: フロントエンドの依存関係
-call :log "%INFO%[INFO]%RESET% フロントエンドの依存関係をチェック中..."
+call :log "%INFO%[INFO]%RESET% Checking frontend dependencies..."
 if not exist "lpm_frontend\node_modules" (
-    call :log "%INFO%[INFO]%RESET% node_modulesが見つかりません。npmパッケージをインストールします..."
+    call :log "%INFO%[INFO]%RESET% node_modules not found. Installing npm packages..."
     cd lpm_frontend
     call npm install
     cd ..
     if %errorlevel% neq 0 (
-        call :log "%WARN%[WARN]%RESET% npm パッケージのインストールに問題がありました。"
+        call :log "%WARN%[WARN]%RESET% There was an issue installing npm packages."
     ) else (
-        call :log "%INFO%[INFO]%RESET% npm パッケージが正常にインストールされました。"
+        call :log "%INFO%[INFO]%RESET% npm packages installed successfully."
     )
 ) else (
-    call :log "%INFO%[INFO]%RESET% フロントエンドの依存関係は既にインストールされています。"
+    call :log "%INFO%[INFO]%RESET% Frontend dependencies are already installed."
 )
 
 :: =============================
 :: 3. 環境変数の設定
 :: =============================
-call :log "%INFO%[INFO]%RESET% 3. 環境変数を設定中..."
+call :log "%INFO%[INFO]%RESET% 3. Setting environment variables..."
 
 :: バックエンドポートの設定
 set "LOCAL_APP_PORT=8002"
@@ -151,31 +154,31 @@ set "NEXT_PUBLIC_BACKEND_URL=http://localhost:8002"
 
 :: フロントエンド環境変数ファイルの確認と作成
 if not exist "lpm_frontend\.env.local" (
-    call :log "%INFO%[INFO]%RESET% フロントエンド環境変数ファイルを作成します..."
+    call :log "%INFO%[INFO]%RESET% Creating frontend environment variables file..."
     echo NEXT_PUBLIC_BACKEND_URL=http://localhost:8002 > lpm_frontend\.env.local
 ) else (
-    call :log "%INFO%[INFO]%RESET% フロントエンド環境変数ファイルを更新します..."
+    call :log "%INFO%[INFO]%RESET% Updating frontend environment variables file..."
     echo NEXT_PUBLIC_BACKEND_URL=http://localhost:8002 > lpm_frontend\.env.local
 )
 
 :: =============================
 :: 4. サーバー起動
 :: =============================
-call :log "%INFO%[INFO]%RESET% 4. サーバーを起動中..."
+call :log "%INFO%[INFO]%RESET% 4. Starting servers..."
 
 :: バックエンドサーバー起動（バックグラウンド）
-call :log "%INFO%[INFO]%RESET% バックエンドサーバーを起動中..."
-start "Second-Me Backend" /min cmd /c "python app.py & pause"
+call :log "%INFO%[INFO]%RESET% Starting backend server..."
+start "Second-Me Backend" /min cmd /c "set PYTHONIOENCODING=utf-8 & set LOCAL_APP_PORT=8002 & python app.py & pause"
 
 :: バックエンドの起動を待機
-call :log "%INFO%[INFO]%RESET% バックエンドの起動を待機中 (5秒)..."
+call :log "%INFO%[INFO]%RESET% Waiting for backend to start (5 seconds)..."
 timeout /t 5 /nobreak > nul
 
 :: バックエンドが起動しているか確認
-call :log "%INFO%[INFO]%RESET% バックエンドの接続テスト中..."
+call :log "%INFO%[INFO]%RESET% Testing backend connection..."
 curl -s http://localhost:8002/api/health > nul
 if %errorlevel% neq 0 (
-    call :log "%WARN%[WARN]%RESET% バックエンドへの接続に失敗しました。再起動を試みます..."
+    call :log "%WARN%[WARN]%RESET% Failed to connect to backend. Attempting restart..."
     taskkill /FI "WINDOWTITLE eq Second-Me Backend" /F > nul 2>&1
     start "Second-Me Backend" /min cmd /c "set PYTHONIOENCODING=utf-8 & set LOCAL_APP_PORT=8002 & python app.py & pause"
     timeout /t 5 /nobreak > nul
@@ -183,89 +186,89 @@ if %errorlevel% neq 0 (
     :: 2回目の確認
     curl -s http://localhost:8002/api/health > nul
     if %errorlevel% neq 0 (
-        call :log "%ERROR%[ERROR]%RESET% バックエンドの起動に失敗しました。"
-        call :log "%INFO%[INFO]%RESET% 詳細なエラーを確認するために別途バックエンドのみを起動してください: start-backend-only.bat"
+        call :log "%ERROR%[ERROR]%RESET% Failed to start backend server."
+        call :log "%INFO%[INFO]%RESET% To see detailed errors, please run: start-backend-only.bat"
     ) else (
-        call :log "%INFO%[INFO]%RESET% バックエンドサーバーが正常に起動しました。"
+        call :log "%INFO%[INFO]%RESET% Backend server started successfully."
     )
 ) else (
-    call :log "%INFO%[INFO]%RESET% バックエンドサーバーが正常に起動しました。"
+    call :log "%INFO%[INFO]%RESET% Backend server started successfully."
 )
 
 :: フロントエンドサーバー起動
-call :log "%INFO%[INFO]%RESET% フロントエンドサーバーを起動中..."
+call :log "%INFO%[INFO]%RESET% Starting frontend server..."
 cd lpm_frontend
 start "Second-Me Frontend" /min cmd /c "npm run dev & pause"
 cd ..
 
 :: フロントエンドの起動を待機
-call :log "%INFO%[INFO]%RESET% フロントエンドの起動を待機中 (10秒)..."
+call :log "%INFO%[INFO]%RESET% Waiting for frontend to start (10 seconds)..."
 timeout /t 10 /nobreak > nul
 
 :: =============================
 :: 5. ブラウザを起動
 :: =============================
-call :log "%INFO%[INFO]%RESET% 5. ブラウザを起動中..."
+call :log "%INFO%[INFO]%RESET% 5. Starting browser..."
 start http://localhost:3000
 
 :: =============================
 :: 6. エラー監視
 :: =============================
-call :log "%INFO%[INFO]%RESET% 6. エラー監視を開始します..."
-call :log "%INFO%[INFO]%RESET% 全てのサービスが起動しました。"
-call :log "%INFO%[INFO]%RESET% サービスURLs:"
-call :log "%INFO%[INFO]%RESET% - フロントエンド: http://localhost:3000"
-call :log "%INFO%[INFO]%RESET% - バックエンドAPI: http://localhost:8002"
+call :log "%INFO%[INFO]%RESET% 6. Starting error monitoring..."
+call :log "%INFO%[INFO]%RESET% All services started."
+call :log "%INFO%[INFO]%RESET% Service URLs:"
+call :log "%INFO%[INFO]%RESET% - Frontend: http://localhost:3000"
+call :log "%INFO%[INFO]%RESET% - Backend API: http://localhost:8002"
 call :log ""
-call :log "%INFO%[INFO]%RESET% ログファイル:"
-call :log "%INFO%[INFO]%RESET% - バックエンド: logs\backend.log"
-call :log "%INFO%[INFO]%RESET% - 起動ログ: %LOG_FILE%"
+call :log "%INFO%[INFO]%RESET% Log files:"
+call :log "%INFO%[INFO]%RESET% - Backend: logs\backend.log"
+call :log "%INFO%[INFO]%RESET% - Startup log: %LOG_FILE%"
 call :log ""
-call :log "%BOLD%%CYAN%エラー発生時のトラブルシューティングガイド:%RESET%"
-call :log "1. %BOLD%バックエンド接続エラー:%RESET% start-backend-only.bat を実行して詳細を確認"
-call :log "2. %BOLD%プロファイル選択問題:%RESET% active_profile.json ファイルを確認"
-call :log "3. %BOLD%フロントエンド表示問題:%RESET% lpm_frontend\.env.local ファイルのURL設定を確認"
+call :log "%BOLD%%CYAN%Troubleshooting guide:%RESET%"
+call :log "1. %BOLD%Backend connection error:%RESET% Run start-backend-only.bat for details"
+call :log "2. %BOLD%Profile selection issue:%RESET% Check active_profile.json file"
+call :log "3. %BOLD%Frontend display issue:%RESET% Check URL settings in lpm_frontend\.env.local"
 call :log ""
-call :log "%BOLD%%CYAN%サービスを停止するには:%RESET% taskkill /f /fi \"WINDOWTITLE eq Second-Me*\""
+call :log "%BOLD%%CYAN%To stop all services:%RESET% taskkill /f /fi \"WINDOWTITLE eq Second-Me*\""
 call :log ""
 
 :: エラー監視プロンプト
 echo.
 echo %BOLD%%BLUE%====================================================%RESET%
-echo %BOLD%%BLUE%      Second-Me Windows - エラー監視コンソール      %RESET%
+echo %BOLD%%BLUE%      Second-Me Windows - Error Monitor Console      %RESET%
 echo %BOLD%%BLUE%====================================================%RESET%
 echo.
-echo エラーログを確認中...
+echo Checking error logs...
 echo.
-echo バックエンドログの最新10行:
-type logs\backend.log | findstr /i "error warning exception failed" | tail -10
+echo Latest 10 lines from backend log:
+type logs\backend.log 2>nul | findstr /i "error warning exception failed" | tail -10
 echo.
-echo %BOLD%%CYAN%コマンド一覧:%RESET%
-echo  1: バックエンドログ確認
-echo  2: ブラウザ再起動
-echo  3: サーバー再起動
-echo  q: 終了
+echo %BOLD%%CYAN%Command list:%RESET%
+echo  1: Check backend logs
+echo  2: Restart browser
+echo  3: Restart servers
+echo  q: Exit
 echo.
 
 :monitor_loop
-set /p CHOICE="コマンドを入力してください (1-3, q): "
+set /p CHOICE="Enter command (1-3, q): "
 
 if "%CHOICE%"=="1" (
     echo.
-    echo バックエンドログの最新20行:
-    type logs\backend.log | tail -20
+    echo Latest 20 lines from backend log:
+    type logs\backend.log 2>nul | tail -20
     echo.
     goto monitor_loop
 )
 
 if "%CHOICE%"=="2" (
     start http://localhost:3000
-    echo ブラウザを再起動しました。
+    echo Browser restarted.
     goto monitor_loop
 )
 
 if "%CHOICE%"=="3" (
-    call :log "%INFO%[INFO]%RESET% サーバーを再起動します..."
+    call :log "%INFO%[INFO]%RESET% Restarting servers..."
     taskkill /f /fi "WINDOWTITLE eq Second-Me*" > nul 2>&1
     timeout /t 2 /nobreak > nul
     
@@ -281,24 +284,24 @@ if "%CHOICE%"=="3" (
     timeout /t 5 /nobreak > nul
     start http://localhost:3000
     
-    call :log "%INFO%[INFO]%RESET% サーバーを再起動しました。"
+    call :log "%INFO%[INFO]%RESET% Servers restarted."
     goto monitor_loop
 )
 
 if "%CHOICE%"=="q" (
-    call :log "%INFO%[INFO]%RESET% 監視を終了します..."
+    call :log "%INFO%[INFO]%RESET% Ending monitoring..."
     goto exit
 )
 
 goto monitor_loop
 
 :error_exit
-call :log "%ERROR%[ERROR]%RESET% エラーが発生したため起動を中止しました。"
+call :log "%ERROR%[ERROR]%RESET% Startup aborted due to errors."
 echo.
-echo %BOLD%%CYAN%詳細なエラーログ:%RESET% %LOG_FILE%
+echo %BOLD%%CYAN%Detailed error log:%RESET% %LOG_FILE%
 pause
 exit /b 1
 
 :exit
-call :log "%INFO%[INFO]%RESET% スーパースタートツールを終了します: %date% %time%"
+call :log "%INFO%[INFO]%RESET% Super Start Tool exiting: %date% %time%"
 exit /b 0

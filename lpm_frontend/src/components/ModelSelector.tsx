@@ -63,7 +63,8 @@ const ModelSelector: React.FC = () => {
       setError(null);
       setSuccess(false);
       
-      await axios.post('/api/models/set', { model_path: selectedModelPath });
+      // エンドポイントを /api/models/select に変更（バックエンドと一致させる）
+      await axios.post('/api/models/select', { model_path: selectedModelPath });
       
       // 選択状態を更新
       setModels(prevModels => prevModels.map(model => ({

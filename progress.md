@@ -32,6 +32,17 @@ Module not found: Can't resolve 'class-variance-authority'
 - 影響範囲: APIデータ取得
 - 原因: CORSプロキシが正しく設定されていない、または起動順序の問題
 
+### 5. 文字化けエラー
+```
+SyntaxError: Invalid or unexpected token
+```
+- 影響範囲: CORSプロキシの起動
+- 原因: CORSプロキシスクリプト内の日本語文字列が文字化けしている
+
+### 6. 複数コマンドウィンドウ問題
+- 影響範囲: 使用体験
+- 原因: 各サービスが個別のウィンドウで起動する設計
+
 ## 修正内容
 
 ### 1. CORSプロキシの重複宣言問題を修正
@@ -74,13 +85,28 @@ Module not found: Can't resolve 'class-variance-authority'
   + set NODE_ENV=development
   ```
 
-### 5. スタートアップスクリプトの完全な再構築
+### 5. CORSプロキシの文字化け問題を修正
+- 日本語のエラーメッセージを英語に変更
+- コード内のすべてのテキストをASCII文字のみを使用するように変更
+- 変更内容：
+  ```diff
+  - error: 'バックエンドサービスに接続できませんでした。サービスが実行中か確認してください。',
+  + error: 'Could not connect to backend service. Please check if the service is running.',
+  ```
+
+### 6. 単一ウィンドウ起動スクリプトの作成
+- `single-window-start.bat` - すべてのサービスを単一ウィンドウで起動
+  - バックエンドとCORSプロキシを最小化された状態で起動
+  - すべてのログをログファイルにリダイレクト
+  - フロントエンドのみを前面に表示
+
+### 7. スタートアップスクリプトの完全な再構築
 - `ultimate-fix.bat` - 決定版の修正スクリプト
   - 古いcors-anywhere.jsファイルの削除と新規作成
   - 待機時間の適切な調整（バックエンド初期化時間の延長）
   - 詳細なエラーメッセージとトラブルシューティング手順
 
-### 6. クリーンアップユーティリティの作成
+### 8. クリーンアップユーティリティの作成
 - `lpm_frontend/clean-all.bat` - 完全クリーンアップスクリプト
   - node_modules、package-lock.json、.nextディレクトリの削除
   - npm cache cleanの実行
@@ -88,11 +114,15 @@ Module not found: Can't resolve 'class-variance-authority'
 
 ## 使用方法
 
-### 通常の起動方法
-1. プロジェクトのルートディレクトリで、以下のコマンドを実行します：
-   ```
-   ultimate-fix.bat
-   ```
+### 推奨方法: 単一ウィンドウモード
+プロジェクトのルートディレクトリで以下のコマンドを実行：
+```
+single-window-start.bat
+```
+このスクリプトは、以下を行います：
+- バックエンドとCORSプロキシを最小化ウィンドウで起動し、ログファイルに出力
+- フロントエンドを前面のウィンドウで起動
+- 自動的にブラウザを開く
 
 ### 問題が解決しない場合の対応手順
 1. すべてのサービスを停止
@@ -114,7 +144,7 @@ Module not found: Can't resolve 'class-variance-authority'
 
 4. 再度修正スクリプトを実行
    ```
-   ultimate-fix.bat
+   single-window-start.bat
    ```
 
 ## エラーパターンと対応策
@@ -124,8 +154,9 @@ Module not found: Can't resolve 'class-variance-authority'
 | jsxDEV is not a function | React/Next.jsの互換性 | Next.jsを13.5.6にダウングレード |
 | createProxyMiddleware has already been declared | CORSスクリプトの重複宣言 | CORSプロキシファイルを再生成 |
 | Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
-| バックエンドサーバー接続エラー | CORSプロキシ設定ミス、または起動タイミング | ultimate-fix.batを使用して正しい順序で起動 |
-| ポートXXXXは使用中です | 既存プロセスがポートを占有 | ultimate-fix.bat内の自動解放機能を使用 |
+| バックエンドサーバー接続エラー | CORSプロキシ設定ミス、または起動タイミング | single-window-start.batを使用して正しい順序で起動 |
+| ポートXXXXは使用中です | 既存プロセスがポートを占有 | single-window-start.bat内の自動解放機能を使用 |
+| Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
 
 ## 残りの課題
 - コアライブラリの互換性テスト

@@ -8,6 +8,7 @@ Second Me Windows - 設定ファイル
 
 import os
 import sys
+import json
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
@@ -43,11 +44,37 @@ WORKSPACE_DIR = os.getenv('WORKSPACE_DIR', os.path.join(os.getcwd(), 'WorkSpace'
 TRAINING_DIR = os.getenv('TRAINING_DIR', os.path.join(os.getcwd(), 'training'))
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))
 
+# アクティブプロファイル情報を保存するファイル
+ACTIVE_PROFILE_FILE = os.path.join(os.getcwd(), 'active_profile.json')
+
+# 保存されているアクティブプロファイル情報を読み込む
+def load_active_profile_info():
+    if not os.path.exists(ACTIVE_PROFILE_FILE):
+        return None, None
+        
+    try:
+        with open(ACTIVE_PROFILE_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        profile_id = data.get('active_profile', '')
+        model_path = data.get('model_path', '')
+        logger.info(f"Loaded active profile from file: {profile_id}")
+        return profile_id, model_path
+    except Exception as e:
+        logger.error(f"Failed to load active profile from file: {str(e)}")
+        return None, None
+
+# 保存されたアクティブプロファイル情報があれば読み込む
+saved_profile_id, saved_model_path = load_active_profile_info()
+
 # 現在選択されているモデル
-SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', '')
+SELECTED_MODEL_PATH = os.getenv('SELECTED_MODEL_PATH', saved_model_path if saved_model_path else '')
 
 # 現在のアクティブプロファイル
-ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', '')
+ACTIVE_PROFILE = os.getenv('ACTIVE_PROFILE', saved_profile_id if saved_profile_id else '')
+
+# 設定情報をログに出力
+logger.info(f"Active profile: {ACTIVE_PROFILE}")
+logger.info(f"Selected model path: {SELECTED_MODEL_PATH}")
 
 # llama.cppのパス
 LLAMACPP_PATH = os.getenv('LLAMACPP_PATH', os.path.join(os.getcwd(), 'llama.cpp', 'build', 'bin', 'Release'))

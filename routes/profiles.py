@@ -13,6 +13,40 @@ from flask import jsonify, request, Flask, make_response
 from werkzeug.utils import secure_filename
 from config import logger, PROFILES_DIR, ACTIVE_PROFILE, SELECTED_MODEL_PATH, WORKSPACE_DIR
 
+# アクティブプロファイル情報を保存するファイル
+ACTIVE_PROFILE_FILE = os.path.join(os.getcwd(), 'active_profile.json')
+
+def save_active_profile(profile_id, model_path=''):
+    """
+    アクティブプロファイル情報をファイルに保存して永続化
+    """
+    try:
+        data = {
+            'active_profile': profile_id,
+            'model_path': model_path
+        }
+        with open(ACTIVE_PROFILE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f"Active profile saved to file: {profile_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save active profile: {str(e)}")
+        return False
+
+def load_active_profile():
+    """
+    保存されたアクティブプロファイル情報を読み込む
+    """
+    if not os.path.exists(ACTIVE_PROFILE_FILE):
+        return None, None
+        
+    try:
+        with open(ACTIVE_PROFILE_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get('active_profile', ''), data.get('model_path', '')
+    except Exception as e:
+        logger.error(f"Failed to load active profile: {str(e)}")
+        return None, None
 
 def register_routes(app: Flask):
     """プロファイル関連のルートを登録"""
@@ -126,6 +160,9 @@ def register_routes(app: Flask):
             import config as app_config
             app_config.ACTIVE_PROFILE = profile_id
             
+            # アクティブプロファイル情報を永続化
+            save_active_profile(profile_id, model_path)
+            
             logger.info(f"Created new profile {profile_id} and set as active")
             
             response = jsonify({
@@ -190,6 +227,9 @@ def register_routes(app: Flask):
                     logger.info(f"Using profile's model: {model_path}")
             except Exception as e:
                 logger.error(f"Failed to load profile config: {str(e)}")
+            
+            # アクティブプロファイル情報を永続化
+            save_active_profile(profile_id, profile_config.get('model_path', ''))
             
             # フロントエンドの期待する応答形式
             response = jsonify({
@@ -273,6 +313,9 @@ def register_routes(app: Flask):
                     logger.info(f"Using profile's model: {model_path}")
             except Exception as e:
                 logger.error(f"Failed to load profile config: {str(e)}")
+            
+            # アクティブプロファイル情報を永続化
+            save_active_profile(profile_id, profile_config.get('model_path', ''))
             
             # フロントエンドの期待する応答形式
             response_data = {

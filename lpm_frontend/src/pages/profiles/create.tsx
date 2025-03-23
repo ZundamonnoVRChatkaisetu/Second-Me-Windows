@@ -173,7 +173,10 @@ export default function CreateProfilePage() {
   };
 
   // モデルサイズを適切な単位で表示する関数
-  const formatSize = (gigabytes: number): string => {
+  const formatSize = (gigabytes: number | undefined): string => {
+    if (gigabytes === undefined || gigabytes === null) {
+      return "不明";
+    }
     return `${gigabytes.toFixed(2)} GB`;
   };
 

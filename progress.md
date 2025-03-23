@@ -27,10 +27,10 @@ Module not found: Can't resolve 'class-variance-authority'
 
 ### 4. バックエンド接続エラー
 ```
-バックエンドサーバー接続エラー (http://localhost:8002)
+Failed to proxy http://localhost:8002/health AggregateError [ECONNREFUSED]
 ```
 - 影響範囲: APIデータ取得
-- 原因: CORSプロキシが正しく設定されていない、または起動順序の問題
+- 原因: Pythonバックエンドが正しく起動していない
 
 ### 5. 文字化けエラー
 ```
@@ -77,15 +77,7 @@ SyntaxError: Invalid or unexpected token
   + "tailwind-merge": "^2.2.1",
   ```
 
-### 4. NODE_ENV問題の修正
-- Next.jsの非標準NODE_ENV警告を修正
-- 修正内容：
-  ```diff
-  - set NODE_ENV=production
-  + set NODE_ENV=development
-  ```
-
-### 5. CORSプロキシの文字化け問題を修正
+### 4. CORSプロキシの文字化け問題を修正
 - 日本語のエラーメッセージを英語に変更
 - コード内のすべてのテキストをASCII文字のみを使用するように変更
 - 変更内容：
@@ -94,58 +86,57 @@ SyntaxError: Invalid or unexpected token
   + error: 'Could not connect to backend service. Please check if the service is running.',
   ```
 
-### 6. 単一ウィンドウ起動スクリプトの作成
-- `single-window-start.bat` - すべてのサービスを単一ウィンドウで起動
-  - バックエンドとCORSプロキシを最小化された状態で起動
-  - すべてのログをログファイルにリダイレクト
-  - フロントエンドのみを前面に表示
+### 5. Pythonバックエンド起動問題の解決
+- 環境変数の適切な設定
+  ```
+  set PYTHONIOENCODING=utf-8
+  set LOCAL_APP_PORT=8002
+  ```
+- Pythonの仮想環境の確認と作成
+- 必要なPythonパッケージのインストール自動化
+  ```
+  pip install flask flask-cors python-dotenv
+  ```
 
-### 7. スタートアップスクリプトの完全な再構築
-- `ultimate-fix.bat` - 決定版の修正スクリプト
-  - 古いcors-anywhere.jsファイルの削除と新規作成
-  - 待機時間の適切な調整（バックエンド初期化時間の延長）
-  - 詳細なエラーメッセージとトラブルシューティング手順
+### 6. 新しい統合起動システムの開発
+- `launch-windows.bat` - 完全な統合起動スクリプト
+  - すべての依存関係チェック
+  - Pythonバックエンドの正しい起動
+  - CORSプロキシの確実な設定
+  - サービス状態の確認機能
+  - 詳細なログ機能
 
-### 8. クリーンアップユーティリティの作成
-- `lpm_frontend/clean-all.bat` - 完全クリーンアップスクリプト
-  - node_modules、package-lock.json、.nextディレクトリの削除
-  - npm cache cleanの実行
-  - CORSプロキシファイルの削除
+### 7. デバッグ用ツールの追加
+- `start-backend-only.bat` - バックエンドのみを起動するスクリプト
+  - バックエンドの問題を診断する際に便利
+  - コンソール出力でリアルタイムのログを表示
+
+### 8. ユーザーガイドの改善
+- `START-HERE.md` - ユーザーフレンドリーな起動ガイド
+  - 推奨される起動方法の解説
+  - 一般的な問題のトラブルシューティング
+  - サービス管理方法の説明
 
 ## 使用方法
 
-### 推奨方法: 単一ウィンドウモード
+### 推奨方法: 統合起動スクリプト
 プロジェクトのルートディレクトリで以下のコマンドを実行：
 ```
-single-window-start.bat
+launch-windows.bat
 ```
-このスクリプトは、以下を行います：
-- バックエンドとCORSプロキシを最小化ウィンドウで起動し、ログファイルに出力
-- フロントエンドを前面のウィンドウで起動
-- 自動的にブラウザを開く
+このスクリプトは、すべての必要なチェックとサービスの起動を自動的に行います。
 
-### 問題が解決しない場合の対応手順
-1. すべてのサービスを停止
-   ```
-   taskkill /f /fi "WINDOWTITLE eq Second-Me*"
-   ```
+### バックエンド問題の診断
+バックエンドの問題を診断する場合：
+```
+start-backend-only.bat
+```
+これにより、バックエンドサーバーが直接コンソールで起動され、エラーメッセージをリアルタイムで確認できます。
 
-2. フロントエンドをクリーンアップ
-   ```
-   cd lpm_frontend
-   clean-all.bat
-   ```
-
-3. 依存関係を再インストール
-   ```
-   npm install
-   cd ..
-   ```
-
-4. 再度修正スクリプトを実行
-   ```
-   single-window-start.bat
-   ```
+### すべてのサービスを停止
+```
+taskkill /f /fi "WINDOWTITLE eq Second-Me*"
+```
 
 ## エラーパターンと対応策
 
@@ -154,17 +145,10 @@ single-window-start.bat
 | jsxDEV is not a function | React/Next.jsの互換性 | Next.jsを13.5.6にダウングレード |
 | createProxyMiddleware has already been declared | CORSスクリプトの重複宣言 | CORSプロキシファイルを再生成 |
 | Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
-| バックエンドサーバー接続エラー | CORSプロキシ設定ミス、または起動タイミング | single-window-start.batを使用して正しい順序で起動 |
-| ポートXXXXは使用中です | 既存プロセスがポートを占有 | single-window-start.bat内の自動解放機能を使用 |
+| ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | launch-windows.batを使用して起動 |
 | Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
 
-## 残りの課題
-- コアライブラリの互換性テスト
-- 他のブラウザでの動作確認
-- 長時間運用時の安定性検証
-
-## 参考リソース
-- [Next.js非標準NODE_ENVの問題](https://nextjs.org/docs/messages/non-standard-node-env)
-- [React 18とNext.js互換性](https://nextjs.org/docs/upgrading)
-- [shadcn/ui公式ドキュメント](https://ui.shadcn.com/)
-- [Express.jsプロキシ設定](https://expressjs.com/en/guide/behind-proxies.html)
+## 今後の課題
+- llama-serverとの連携強化
+- ローカライズの改善
+- インストールプロセスの自動化

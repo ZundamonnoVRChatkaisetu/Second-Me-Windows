@@ -57,12 +57,20 @@ POST /api/models/set 405 (Method Not Allowed)
 - 影響範囲: 使用体験
 - 原因: 各サービスが個別のウィンドウで起動する設計
 
-### 9. プロファイル選択問題（新規）
+### 9. プロファイル選択問題
 ```
 プロファイル管理から選択しても選択されない
 ```
 - 影響範囲: プロファイル管理と切り替え機能
 - 原因: プロファイル選択時の状態が永続化されておらず、サーバー再起動時に選択状態がリセットされる
+
+### 10. バッチファイル文字化け問題（新規）
+```
+'Me' は、内部コマンドまたは外部コマンド、
+操作可能なプログラムまたはバッチ ファイルとして認識されていません。
+```
+- 影響範囲: バッチファイルの実行
+- 原因: バッチファイル内の日本語文字がUTF-8で保存されているのに対し、コマンドプロンプトが別のエンコーディングを使用している
 
 ## 修正内容
 
@@ -189,7 +197,7 @@ POST /api/models/set 405 (Method Not Allowed)
   - foreground-frontend.bat
   - simple-start.bat
 
-### 13. プロファイル選択問題の修正（新規）
+### 13. プロファイル選択問題の修正
 - アクティブプロファイル情報を永続化するシステムを追加
   ```python
   # プロファイル情報をJSONファイルに保存
@@ -238,12 +246,25 @@ POST /api/models/set 405 (Method Not Allowed)
   }, 1500);
   ```
 
+### 14. バッチファイル文字化け問題の修正（新規）
+- バッチファイルの冒頭でUTF-8コードページを設定
+  ```batch
+  @echo off
+  chcp 65001 > nul
+  ```
+- 日本語文字列を英語に置き換え
+  ```diff
+  - echo %BOLD%%BLUE%      Second-Me Windows スーパースタートツール      %RESET%
+  + echo %BOLD%%BLUE%      Second-Me Windows Super Start Tool      %RESET%
+  ```
+- ASCII文字のみを使用して文字化けを防止
+
 ## 使用方法
 
 ### 推奨方法: 統合起動スクリプト
 プロジェクトのルートディレクトリで以下のコマンドを実行：
 ```
-launch-windows.bat
+super-start.bat
 ```
 このスクリプトは、すべての必要なチェックとサービスの起動を自動的に行います。
 
@@ -273,11 +294,12 @@ taskkill /f /fi "WINDOWTITLE eq Second-Me*"
 | jsxDEV is not a function | React/Next.jsの互換性 | Next.jsを13.5.6にダウングレード |
 | createProxyMiddleware has already been declared | CORSスクリプトの重複宣言 | CORSプロキシファイルを再生成 |
 | Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
-| ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | launch-windows.batまたはconnect-backend.batを使用して起動 |
+| ECONNREFUSED (バックエンド接続エラー) | Pythonバックエンドが起動していない | super-start.batまたはstart-backend-only.batを使用して起動 |
 | Invalid or unexpected token | 文字化けの問題 | 再生成されたASCII版CORSプロキシを使用 |
 | Cannot read properties of undefined (reading 'toFixed') | モデルサイズがundefined | undefinedチェックを含む修正版のModelSelector.tsxを使用 |
 | 405 Method Not Allowed | API エンドポイントの不一致 | フロントエンドのAPI呼び出しパスをバックエンドと一致させる |
 | プロファイルが選択されない | プロファイル状態の永続化問題 | 修正版のprofiles.pyとconfig.pyを使用 |
+| バッチファイル文字化け | エンコーディングの不一致 | チェックコードページで`chcp 65001`を追加しANSI文字に制限 |
 
 ## 今後の課題
 - llama-serverとの連携強化

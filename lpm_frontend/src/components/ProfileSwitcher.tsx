@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAppContext } from '@/lib/AppContext';
 import { Button } from './ui/Button';
+import axios from 'axios';
+
+// バックエンドのURLを取得
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8002';
 
 /**
  * 各機能ページで使用するプロファイル切り替えコンポーネント
@@ -17,6 +21,8 @@ const ProfileSwitcher: React.FC = () => {
   } = useAppContext();
 
   const [showDropdown, setShowDropdown] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -62,29 +68,106 @@ const ProfileSwitcher: React.FC = () => {
     // 既にアクティブなプロファイルの場合は何もしない
     if (profiles.active?.id === profileId) return;
 
+    setLoading(true);
+    
     try {
-      const success = await activateProfile(profileId);
-      if (success) {
-        // 現在のページをリロードして最新情報を反映
-        router.reload();
+      // APIを直接呼び出し
+      const requestConfig = {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      };
+      
+      // リクエスト本文
+      const requestData = { profile_id: profileId };
+      
+      console.log(`切り替え先プロファイル: ${profileId}`);
+      
+      try {
+        // selectエンドポイントを使用
+        const response = await axios.post(
+          `${BACKEND_URL}/api/profiles/select`, 
+          requestData, 
+          requestConfig
+        );
+        console.log("Profile selection response:", response.data);
+        
+        // 成功メッセージを表示
+        setSuccessMessage("プロファイルを切り替えました。ページをリロードします...");
+        
+        // 少し待ってからページをリロード
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
+      } catch (selectError) {
+        console.warn("Select endpoint failed, trying activate endpoint:", selectError);
+        
+        // フォールバック: activateエンドポイントを使用
+        try {
+          const activateResponse = await axios.post(
+            `${BACKEND_URL}/api/profiles/activate`, 
+            requestData, 
+            requestConfig
+          );
+          console.log("Profile activation response:", activateResponse.data);
+          
+          // 成功メッセージを表示
+          setSuccessMessage("プロファイルをアクティブ化しました。ページをリロードします...");
+          
+          // 少し待ってからページをリロード
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+          
+        } catch (activateError: any) {
+          console.error("Both endpoints failed:", activateError);
+          throw activateError;
+        }
       }
-    } catch (error) {
-      console.error('プロファイル切り替えエラー:', error);
-      setError('プロファイルの切り替えに失敗しました');
+    } catch (error: any) {
+      console.error('Failed to change profile:', error);
+      
+      // AppContextを使用したエラー表示
+      if (error.response && error.response.data && error.response.data.error) {
+        setError(`プロファイル切り替えエラー: ${error.response.data.error}`);
+      } else {
+        setError('プロファイルの切り替えに失敗しました。サーバー接続を確認してください。');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="relative">
+      {/* 成功メッセージ（表示される場合） */}
+      {successMessage && (
+        <div className="absolute -top-12 left-0 right-0 p-2 bg-green-100 text-green-800 text-sm rounded">
+          <span>{successMessage}</span>
+        </div>
+      )}
+      
       {/* 現在のプロファイル表示ボタン */}
       <button
         ref={buttonRef}
         onClick={toggleDropdown}
+        disabled={loading}
         className="flex items-center px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
       >
-        <span className="mr-2">👤</span>
-        <span className="font-medium">{profiles.active ? profiles.active.name : '選択なし'}</span>
-        <span className="ml-2">{showDropdown ? '▲' : '▼'}</span>
+        {loading ? (
+          <>
+            <span className="mr-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></span>
+            <span>処理中...</span>
+          </>
+        ) : (
+          <>
+            <span className="mr-2">👤</span>
+            <span className="font-medium">{profiles.active ? profiles.active.name : '選択なし'}</span>
+            <span className="ml-2">{showDropdown ? '▲' : '▼'}</span>
+          </>
+        )}
       </button>
 
       {/* プロファイル選択ドロップダウン */}
@@ -106,11 +189,12 @@ const ProfileSwitcher: React.FC = () => {
                   <button
                     key={profile.id}
                     onClick={() => handleProfileChange(profile.id)}
+                    disabled={loading}
                     className={`w-full text-left block px-4 py-2 text-sm ${
                       profile.active
                         ? 'bg-blue-100 text-blue-800 font-medium'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                    } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="flex items-center">
                       <span className="mr-2">{profile.active ? '✓' : '　'}</span>
@@ -139,7 +223,10 @@ const ProfileSwitcher: React.FC = () => {
                   setShowDropdown(false);
                   router.push('/profiles');
                 }}
-                className="w-full text-sm py-1 bg-blue-600 hover:bg-blue-700"
+                disabled={loading}
+                className={`w-full text-sm py-1 bg-blue-600 hover:bg-blue-700 ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 プロファイル管理
               </Button>

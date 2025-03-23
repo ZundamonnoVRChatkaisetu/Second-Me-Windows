@@ -2,7 +2,7 @@
 
 ## エラー分析
 
-現在発生しているエラーは以下に集約されます：
+現在発生している主なエラーは以下に集約されます：
 
 ### 1. React JSXレンダリングエラー
 ```
@@ -24,6 +24,13 @@ Module not found: Can't resolve 'class-variance-authority'
 ```
 - 影響範囲: UIコンポーネントのレンダリング
 - 原因: shadcn/ui関連のパッケージが不足している
+
+### 4. バックエンド接続エラー
+```
+バックエンドサーバー接続エラー (http://localhost:8002)
+```
+- 影響範囲: APIデータ取得
+- 原因: CORSプロキシが正しく設定されていない、または起動順序の問題
 
 ## 修正内容
 
@@ -59,31 +66,66 @@ Module not found: Can't resolve 'class-variance-authority'
   + "tailwind-merge": "^2.2.1",
   ```
 
-### 4. 依存関係の再インストール用スクリプトを追加
-- `lpm_frontend/reinstall-deps.bat`を作成
-- 機能：node_modules、package-lock.jsonを削除し、依存関係を再インストール
+### 4. NODE_ENV問題の修正
+- Next.jsの非標準NODE_ENV警告を修正
+- 修正内容：
+  ```diff
+  - set NODE_ENV=production
+  + set NODE_ENV=development
+  ```
 
-### 5. 改善されたスタートアップスクリプトを追加
-- `start-fixed.bat`を作成
-- 追加機能：
-  - 環境変数の適切な設定（NODE_ENV問題への対応）
-  - エラー発生時の対応方法の表示
-  - 改善されたポート競合の検出と解決
+### 5. スタートアップスクリプトの完全な再構築
+- `ultimate-fix.bat` - 決定版の修正スクリプト
+  - 古いcors-anywhere.jsファイルの削除と新規作成
+  - 待機時間の適切な調整（バックエンド初期化時間の延長）
+  - 詳細なエラーメッセージとトラブルシューティング手順
+
+### 6. クリーンアップユーティリティの作成
+- `lpm_frontend/clean-all.bat` - 完全クリーンアップスクリプト
+  - node_modules、package-lock.json、.nextディレクトリの削除
+  - npm cache cleanの実行
+  - CORSプロキシファイルの削除
 
 ## 使用方法
 
+### 通常の起動方法
 1. プロジェクトのルートディレクトリで、以下のコマンドを実行します：
    ```
-   cd lpm_frontend
-   reinstall-deps.bat
-   cd ..
-   start-fixed.bat
+   ultimate-fix.bat
    ```
 
-2. エラーが発生した場合：
-   - コンソールのエラーメッセージを確認
-   - フロントエンドサービスの再インストールを試行：`lpm_frontend\reinstall-deps.bat`
-   - 起動スクリプトの再実行：`start-fixed.bat`
+### 問題が解決しない場合の対応手順
+1. すべてのサービスを停止
+   ```
+   taskkill /f /fi "WINDOWTITLE eq Second-Me*"
+   ```
+
+2. フロントエンドをクリーンアップ
+   ```
+   cd lpm_frontend
+   clean-all.bat
+   ```
+
+3. 依存関係を再インストール
+   ```
+   npm install
+   cd ..
+   ```
+
+4. 再度修正スクリプトを実行
+   ```
+   ultimate-fix.bat
+   ```
+
+## エラーパターンと対応策
+
+| エラーメッセージ | 考えられる原因 | 対応策 |
+|------------|------------|--------|
+| jsxDEV is not a function | React/Next.jsの互換性 | Next.jsを13.5.6にダウングレード |
+| createProxyMiddleware has already been declared | CORSスクリプトの重複宣言 | CORSプロキシファイルを再生成 |
+| Can't resolve 'class-variance-authority' | 不足しているUI依存関係 | 必要なパッケージをインストール |
+| バックエンドサーバー接続エラー | CORSプロキシ設定ミス、または起動タイミング | ultimate-fix.batを使用して正しい順序で起動 |
+| ポートXXXXは使用中です | 既存プロセスがポートを占有 | ultimate-fix.bat内の自動解放機能を使用 |
 
 ## 残りの課題
 - コアライブラリの互換性テスト
@@ -94,3 +136,4 @@ Module not found: Can't resolve 'class-variance-authority'
 - [Next.js非標準NODE_ENVの問題](https://nextjs.org/docs/messages/non-standard-node-env)
 - [React 18とNext.js互換性](https://nextjs.org/docs/upgrading)
 - [shadcn/ui公式ドキュメント](https://ui.shadcn.com/)
+- [Express.jsプロキシ設定](https://expressjs.com/en/guide/behind-proxies.html)

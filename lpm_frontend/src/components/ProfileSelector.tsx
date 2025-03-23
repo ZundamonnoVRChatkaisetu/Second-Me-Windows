@@ -73,15 +73,28 @@ const ProfileSelector: React.FC = () => {
         }
       };
       
-      // リクエスト本文
-      const requestData = { profile_id: profileId };
+      // リクエスト本文 - 両方のエンドポイントで使われるフィールド名を含める
+      const requestData = { 
+        profile_id: profileId,
+        id: profileId  // 一部のバックエンドエンドポイントが id をサポート
+      };
       
       console.log("Request data:", requestData);
       console.log("Request config:", requestConfig);
       
       try {
-        const response = await axios.post('/api/profiles/activate', requestData, requestConfig);
-        console.log("Activation response:", response);
+        // selectエンドポイントを最初に試す (より信頼性が高い)
+        await axios.post('/api/profiles/select', requestData, requestConfig)
+          .then(response => {
+            console.log("Profile selection response:", response);
+            // 選択成功
+          })
+          .catch(async (selectErr) => {
+            console.warn("Profile select endpoint failed, trying activate endpoint:", selectErr);
+            // selectが失敗した場合はactivateを試す
+            const activateResponse = await axios.post('/api/profiles/activate', requestData, requestConfig);
+            console.log("Profile activation response:", activateResponse);
+          });
         
         // 選択状態を更新
         setProfiles(prevProfiles => prevProfiles.map(profile => ({
@@ -96,6 +109,9 @@ const ProfileSelector: React.FC = () => {
         
         // 3秒後に成功メッセージを非表示
         setTimeout(() => setSuccess(null), 3000);
+        
+        // 変更が反映されるようにプロファイル一覧を再取得
+        fetchProfiles();
       } catch (axiosErr: any) {
         console.error("Axios error details:", {
           message: axiosErr.message,

@@ -33,6 +33,7 @@
 3. プロファイルAPIで500エラーが発生している
 4. ルートモジュールの登録に問題がある可能性
 5. ファイルパスに特殊文字や日本語が含まれている可能性
+6. `debug_endpoints.py` ファイルが存在しない
 
 ### 修正内容（第1フェーズ）
 
@@ -155,6 +156,46 @@ try:
 - ポートの解放、環境変数の設定、サービスの起動などを一括で行います
 - バックエンドの状態確認も含め、より堅牢な起動シーケンスを実現します
 
+### 修正内容（第5フェーズ）
+
+#### 14. デバッグエンドポイントの実装
+- `debug_endpoints.py` ファイルを新規作成し、様々なデバッグ用APIエンドポイントを実装しました
+- `/api/debug`, `/debug`, `/api/jsonp/debug`, `/api/debug/cors-test`, `/api/debug/network` などのエンドポイントを追加
+- 特に、axiom、fetch、alternativeなどのテストが失敗していた部分に対応するエンドポイントを追加しました
+
+```python
+# 標準のデバッグエンドポイント (api/debug)
+@app.route('/api/debug', methods=['GET', 'OPTIONS'])
+def debug_endpoint():
+    """デバッグ用APIエンドポイント"""
+    if request.method == 'OPTIONS':
+        return _create_cors_preflight_response()
+    
+    # レスポンスのビルド
+    response_data = {
+        'status': 'ok',
+        'message': 'Debug endpoint is working',
+        'request_info': {
+            'remote_addr': request.remote_addr,
+            'method': request.method,
+            'user_agent': request.headers.get('User-Agent', ''),
+            'accept': request.headers.get('Accept', ''),
+            'content_type': request.headers.get('Content-Type', ''),
+            'origin': request.headers.get('Origin', ''),
+            'referer': request.headers.get('Referer', '')
+        }
+    }
+    
+    logger.info(f"Debug endpoint accessed from: {request.remote_addr}")
+    return jsonify(response_data)
+```
+
+#### 15. 今後の改善点
+- ネットワーク接続問題の原因となる可能性のあるファイアウォール設定の確認手順を追加
+- プロキシ環境下での動作をサポートするための設定オプションの追加
+- バックエンドとフロントエンドの接続ステータスをリアルタイムで監視するヘルスモニタリング機能の追加
+- 開発環境と本番環境の設定を容易に切り替えられるようにするための環境設定の改善
+
 ### 次のステップと実行手順
 
 1. クイックフィックス起動スクリプトを使用してアプリケーションを起動
@@ -184,4 +225,4 @@ try:
    - セキュリティソフトがネットワーク接続をブロックしていないか確認
    - 現在のディレクトリパスに特殊文字や日本語が含まれていないか確認
 
-これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入により、アプリケーションの基本機能が確保されます。
+これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入と、各種デバッグエンドポイントの追加により、アプリケーションの基本機能が確保されます。

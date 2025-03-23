@@ -9,6 +9,7 @@ Second Me Windows - プロファイルルート
 import os
 import json
 import shutil
+import traceback
 from flask import jsonify, request, Flask, make_response
 from werkzeug.utils import secure_filename
 from config import logger, PROFILES_DIR, ACTIVE_PROFILE, SELECTED_MODEL_PATH, WORKSPACE_DIR
@@ -91,6 +92,49 @@ def register_routes(app: Flask):
                         except Exception as e:
                             logger.warning(f"Failed to load profile {item}: {str(e)}")
             
+            # プロファイルがない場合は、デフォルトのプロファイルを作成
+            if not profiles:
+                logger.info("No profiles found, creating default profile")
+                default_profile_id = "default_profile"
+                default_profile_dir = os.path.join(PROFILES_DIR, default_profile_id)
+                
+                if not os.path.exists(default_profile_dir):
+                    os.makedirs(default_profile_dir, exist_ok=True)
+                
+                # デフォルトプロファイル設定の作成
+                from datetime import datetime
+                default_config = {
+                    'name': "Default Profile",
+                    'description': "Automatically created default profile",
+                    'created_at': datetime.now().isoformat(),
+                    'model_path': SELECTED_MODEL_PATH
+                }
+                
+                # 設定ファイルの保存
+                config_path = os.path.join(default_profile_dir, 'config.json')
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(default_config, f, ensure_ascii=False, indent=2)
+                
+                # グローバル変数の ACTIVE_PROFILE を更新
+                import config as app_config
+                app_config.ACTIVE_PROFILE = default_profile_id
+                
+                # アクティブプロファイル情報を永続化
+                save_active_profile(default_profile_id, SELECTED_MODEL_PATH)
+                
+                # 作成したプロファイルを追加
+                profiles.append({
+                    'id': default_profile_id,
+                    'name': default_config['name'],
+                    'description': default_config['description'],
+                    'created_at': default_config['created_at'],
+                    'active': True,
+                    'is_active': True,
+                    'model_path': default_config['model_path'],
+                    'training_count': 0,
+                    'memories_count': 0
+                })
+            
             response = jsonify({
                 'profiles': profiles,
                 'active_profile': ACTIVE_PROFILE,
@@ -100,11 +144,11 @@ def register_routes(app: Flask):
             
         except Exception as e:
             logger.exception(f"Error getting profiles: {str(e)}")
+            logger.error(traceback.format_exc())
             response = jsonify({
                 'error': f"プロファイル一覧の取得中にエラーが発生しました: {str(e)}"
             })
             return _corsify_response(response, 500)
-
 
     @app.route('/api/profiles/create', methods=['POST', 'OPTIONS'])
     def create_profile():
@@ -190,6 +234,7 @@ def register_routes(app: Flask):
             return _create_cors_preflight_response()
             
         try:
+            logger.info(f"select_profile request: {request.json}")
             data = request.json
             profile_id = data.get('profile_id')
             
@@ -246,6 +291,7 @@ def register_routes(app: Flask):
             
         except Exception as e:
             logger.exception(f"Error selecting profile: {str(e)}")
+            logger.error(traceback.format_exc())
             response = jsonify({
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
             })
@@ -333,6 +379,7 @@ def register_routes(app: Flask):
             
         except Exception as e:
             logger.exception(f"Error activating profile: {str(e)}")
+            logger.error(traceback.format_exc())
             response = jsonify({
                 'error': f"プロファイル選択中にエラーが発生しました: {str(e)}"
             })

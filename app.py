@@ -148,6 +148,43 @@ def internal_error(error):
         'message': 'The server encountered an internal error.'
     }), 500
 
+# シンプルなプロファイルエンドポイントを登録（最優先）
+try:
+    from routes import simple_profiles
+    simple_profiles.register_routes(app)
+    logger.info("Simple profiles routes registered successfully")
+    
+    # 標準のプロファイルエンドポイントへのリダイレクト
+    @app.route('/api/profiles', methods=['GET', 'OPTIONS'])
+    def redirect_profiles():
+        """標準のプロファイルエンドポイントへの要求をシンプルなエンドポイントにリダイレクト"""
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            return response
+        
+        # シンプルなプロファイルエンドポイントを内部的に呼び出す
+        return simple_profiles.get_simple_profiles()
+    
+    @app.route('/api/profiles/activate', methods=['POST', 'OPTIONS'])
+    def redirect_activate_profile():
+        """標準のプロファイルアクティベーションエンドポイントへの要求をシンプルなエンドポイントにリダイレクト"""
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            return response
+        
+        # シンプルなプロファイルアクティベーションエンドポイントを内部的に呼び出す
+        return simple_profiles.activate_simple_profile()
+    
+except Exception as e:
+    logger.error(f"Error registering simple profiles routes: {str(e)}")
+    logger.error(traceback.format_exc())
+
 # デバッグ用エンドポイントを登録
 try:
     import debug_endpoints
@@ -204,32 +241,6 @@ except Exception as e:
             'message': 'Emergency health endpoint is working',
             'uptime': (datetime.now() - START_TIME).total_seconds(),
             'error': 'Main routes failed to register'
-        })
-        
-    @app.route('/api/profiles', methods=['GET', 'OPTIONS'])
-    def emergency_profiles():
-        """緊急用のプロファイルエンドポイント"""
-        if request.method == 'OPTIONS':
-            response = make_response()
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-            return response
-            
-        # 応急処置としてのプロファイル情報
-        default_profile = {
-            'id': 'emergency_profile',
-            'name': 'Emergency Profile',
-            'description': 'Fallback profile when main routes fail to register',
-            'created_at': '2025-03-23T00:00:00Z',
-            'active': True,
-            'is_active': True
-        }
-        
-        return jsonify({
-            'profiles': [default_profile],
-            'active_profile': 'emergency_profile',
-            'profiles_dir': PROFILES_DIR
         })
 
 if __name__ == '__main__':

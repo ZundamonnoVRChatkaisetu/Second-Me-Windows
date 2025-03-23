@@ -34,6 +34,7 @@
 4. ルートモジュールの登録に問題がある可能性
 5. ファイルパスに特殊文字や日本語が含まれている可能性
 6. `debug_endpoints.py` ファイルが存在しない
+7. フロントエンドが誤ったポートで起動する問題
 
 ### 修正内容（第1フェーズ）
 
@@ -190,7 +191,41 @@ def debug_endpoint():
     return jsonify(response_data)
 ```
 
-#### 15. 今後の改善点
+#### 15. フロントエンドのポート設定問題を修正
+- `quick-fix-start.bat` スクリプトを改修し、フロントエンドが正しいポート(3000)で起動するようにしました
+- 明示的にNext.jsに `-p 3000` オプションを渡すことで、ポートを固定するようにしました
+- 環境変数 `.env.local` ファイルを自動的に設定または更新するコードを追加しました
+- バックエンドとフロントエンドのポート設定を明確に分離し、変数名も変更しました
+
+```batch
+REM フロントエンドの環境変数を設定
+cd lpm_frontend
+
+REM .env.localファイルの存在チェック
+if not exist .env.local (
+  echo NEXT_PUBLIC_BACKEND_URL=http://localhost:%BACKEND_PORT% > .env.local
+  echo PORT=%FRONTEND_PORT% >> .env.local
+) else (
+  echo .env.localファイルが既に存在します。バックエンドURLを更新します。
+  type nul > .env.local.tmp
+  for /F "tokens=1,* delims==" %%a in (.env.local) do (
+    if "%%a"=="NEXT_PUBLIC_BACKEND_URL" (
+      echo NEXT_PUBLIC_BACKEND_URL=http://localhost:%BACKEND_PORT% >> .env.local.tmp
+    ) else if "%%a"=="PORT" (
+      echo PORT=%FRONTEND_PORT% >> .env.local.tmp
+    ) else (
+      echo %%a=%%b >> .env.local.tmp
+    )
+  )
+  move /y .env.local.tmp .env.local > nul
+)
+
+REM フロントエンドの起動 - ポートを明示的に指定
+echo フロントエンドサーバーを起動しています（ポート: %FRONTEND_PORT%）...
+start cmd /k "title Second Me Frontend && color 0B && npm run dev -- -p %FRONTEND_PORT%"
+```
+
+#### 16. 今後の改善点
 - ネットワーク接続問題の原因となる可能性のあるファイアウォール設定の確認手順を追加
 - プロキシ環境下での動作をサポートするための設定オプションの追加
 - バックエンドとフロントエンドの接続ステータスをリアルタイムで監視するヘルスモニタリング機能の追加
@@ -225,4 +260,4 @@ def debug_endpoint():
    - セキュリティソフトがネットワーク接続をブロックしていないか確認
    - 現在のディレクトリパスに特殊文字や日本語が含まれていないか確認
 
-これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入と、各種デバッグエンドポイントの追加により、アプリケーションの基本機能が確保されます。
+これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入と、各種デバッグエンドポイントの追加により、アプリケーションの基本機能が確保されます。また、フロントエンドのポート設定問題も解決され、適切なポートで起動するようになりました。

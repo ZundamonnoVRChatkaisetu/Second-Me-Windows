@@ -95,6 +95,7 @@ echo %GREEN%[INFO]%RESET% 3. Setting environment variables...
 
 REM 環境変数設定
 set "LOCAL_APP_PORT=8002"
+set "LOG_LEVEL=DEBUG"
 set "PYTHONIOENCODING=utf-8"
 
 REM フロントエンド環境変数ファイルの作成
@@ -106,11 +107,19 @@ echo %GREEN%[INFO]%RESET% 4. Starting servers...
 
 REM バックエンドの起動
 echo %GREEN%[INFO]%RESET% Starting backend server...
-start "Second-Me Backend" cmd /c "set PYTHONIOENCODING=utf-8 & set LOCAL_APP_PORT=8002 & python app.py & pause"
+start "Second-Me Backend" cmd /c "set PYTHONIOENCODING=utf-8 & set LOCAL_APP_PORT=8002 & set LOG_LEVEL=DEBUG & python app.py & pause"
 
 REM バックエンドの起動を待機
 echo %GREEN%[INFO]%RESET% Waiting for backend to start (10 seconds)...
 timeout /t 10 /nobreak > nul
+
+REM バックエンドが起動したか確認
+curl -s http://localhost:8002/health > nul 2>&1
+if %errorlevel% neq 0 (
+    echo %YELLOW%[WARN]%RESET% Backend may not be fully started yet. Will continue anyway.
+) else (
+    echo %GREEN%[INFO]%RESET% Backend is running on port 8002.
+)
 
 REM フロントエンドの起動
 echo %GREEN%[INFO]%RESET% Starting frontend server...
@@ -136,10 +145,12 @@ echo %GREEN%[INFO]%RESET% All services started.
 echo %GREEN%[INFO]%RESET% Service URLs:
 echo   - Frontend: http://localhost:3000
 echo   - Backend API: http://localhost:8002
+echo   - Debug Page: http://localhost:3000/debug
 echo.
 echo %YELLOW%[NOTE]%RESET% If you encounter connection issues:
 echo   1. Check backend log in logs/backend.log
 echo   2. Try restarting with 'start-backend-only.bat' to see detailed errors
+echo   3. Visit the debug page at http://localhost:3000/debug for connection diagnostics
 echo.
 echo %BOLD%To stop all services:%RESET% taskkill /f /fi "WINDOWTITLE eq Second-Me*"
 echo.

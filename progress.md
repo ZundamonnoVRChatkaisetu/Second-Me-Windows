@@ -7,6 +7,8 @@
 - プロファイルの取得に失敗している
 - アプリケーション起動時のエラー: `AttributeError: module 'logging' has no attribute 'DEBUG '. Did you mean: 'DEBUG'?`
 - バックエンド接続テストで一部成功するが、プロファイルAPIで500エラー（サーバー内部エラー）が発生
+- `AttributeError: module 'routes.simple_profiles' has no attribute 'get_simple_profiles'`エラーが発生
+- フロントエンド側で`TypeError: Cannot read properties of undefined (reading 'toFixed')`エラーが発生
 
 ### 調査内容
 ファイル確認の結果、以下の点を確認しました：
@@ -35,6 +37,8 @@
 5. ファイルパスに特殊文字や日本語が含まれている可能性
 6. `debug_endpoints.py` ファイルが存在しない
 7. フロントエンドが誤ったポートで起動する問題
+8. `simple_profiles.py`モジュールでの関数の定義場所が適切でない
+9. プロファイル作成ページで`formatSize`関数がundefinedの入力を処理できていない
 
 ### 修正内容（第1フェーズ）
 
@@ -225,7 +229,48 @@ echo フロントエンドサーバーを起動しています（ポート: %FRO
 start cmd /k "title Second Me Frontend && color 0B && npm run dev -- -p %FRONTEND_PORT%"
 ```
 
-#### 16. 今後の改善点
+#### 16. `simple_profiles.py`の関数定義を修正
+- `simple_profiles.py`を修正し、関数をモジュールレベルで定義するようにしました
+- Flaskのルート関数として定義していた`get_simple_profiles`関数をモジュールレベルの関数に移動し、`app.py`から直接呼び出せるようにしました
+- 同様に`activate_simple_profile`関数もモジュールレベルに移動しました
+
+```python
+# モジュールレベルで直接呼び出し可能な関数として定義 (app.pyから直接アクセスできるように)
+def get_simple_profiles():
+    """シンプル化されたプロファイル一覧を取得する関数"""
+    try:
+        # デフォルトプロファイル（常に返されるフォールバック）
+        default_profile = {
+            'id': 'default_profile',
+            'name': 'Default Profile',
+            'description': 'A simple default profile',
+            'created_at': datetime.now().isoformat(),
+            'active': True,
+            'is_active': True
+        }
+        
+        # プロファイルディレクトリパスの取得
+        current_dir = os.getcwd()
+        profiles_dir = os.path.join(current_dir, 'profiles')
+        
+        # 処理の続き...
+```
+
+#### 17. フロントエンドの`formatSize`関数を修正
+- プロファイル作成ページの`formatSize`関数を修正し、`undefined`や`null`の値を適切に処理するようにしました
+- これにより、モデルサイズがない場合でもエラーを発生させないようになりました
+
+```typescript
+// モデルサイズを適切な単位で表示する関数
+const formatSize = (gigabytes: number | undefined): string => {
+  if (gigabytes === undefined || gigabytes === null) {
+    return "不明";
+  }
+  return `${gigabytes.toFixed(2)} GB`;
+};
+```
+
+#### 18. 今後の改善点
 - ネットワーク接続問題の原因となる可能性のあるファイアウォール設定の確認手順を追加
 - プロキシ環境下での動作をサポートするための設定オプションの追加
 - バックエンドとフロントエンドの接続ステータスをリアルタイムで監視するヘルスモニタリング機能の追加
@@ -260,4 +305,4 @@ start cmd /k "title Second Me Frontend && color 0B && npm run dev -- -p %FRONTEN
    - セキュリティソフトがネットワーク接続をブロックしていないか確認
    - 現在のディレクトリパスに特殊文字や日本語が含まれていないか確認
 
-これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入と、各種デバッグエンドポイントの追加により、アプリケーションの基本機能が確保されます。また、フロントエンドのポート設定問題も解決され、適切なポートで起動するようになりました。
+これらの修正により、バックエンドとフロントエンドの接続が改善され、プロファイルの取得問題も解決されることが期待されます。特に、APIエンドポイントの500エラーを解決するためのシンプルなプロファイルAPIの導入と、各種デバッグエンドポイントの追加により、アプリケーションの基本機能が確保されます。また、フロントエンドのポート設定問題も解決され、適切なポートで起動するようになりました。さらに、`AttributeError`と`TypeError`のエラーも修正し、アプリケーションの安定性が向上しました。

@@ -17,12 +17,11 @@ from config import (
     logger, PORT, MODELS_DIR, PROFILES_DIR, UPLOAD_FOLDER, WORKSPACE_DIR,
     SELECTED_MODEL_PATH, ACTIVE_PROFILE, LLAMACPP_MAIN, START_TIME, log_level
 )
-from routes import register_routes
 
 # Flaskアプリケーションの設定
 app = Flask(__name__)
 
-# CORSの詳細設定
+# CORSの詳細設定（念のため許容設定を最大に）
 cors = CORS(
     app, 
     resources={r"/*": {"origins": "*"}},  # すべてのリソースへのアクセスを許可
@@ -35,6 +34,7 @@ cors = CORS(
 # すべてのレスポンスにCORSヘッダーを追加
 @app.after_request
 def add_cors_headers(response):
+    """すべてのレスポンスにCORSヘッダーを追加する"""
     # すでにヘッダーがある場合でも常に上書き
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
@@ -92,13 +92,67 @@ def internal_error(error):
         'message': 'The server encountered an internal error.'
     }), 500
 
+# デバッグ用エンドポイントを登録
+try:
+    import debug_endpoints
+    debug_endpoints.register_debug_routes(app)
+    logger.info("Debug endpoints registered successfully")
+except Exception as e:
+    logger.error(f"Error registering debug endpoints: {str(e)}")
+    logger.error(traceback.format_exc())
+
 # ルートを登録
 try:
+    from routes import register_routes
     register_routes(app)
-    logger.info("All routes registered successfully")
+    logger.info("Main routes registered successfully")
 except Exception as e:
     logger.error(f"Error registering routes: {str(e)}")
     logger.error(traceback.format_exc())
+    
+    # 最低限のAPIエンドポイントを手動で登録（緊急対策）
+    @app.route('/api/health', methods=['GET', 'OPTIONS'])
+    def emergency_health():
+        """緊急用のヘルスチェックエンドポイント"""
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            return response
+            
+        return jsonify({
+            'status': 'ok',
+            'message': 'Emergency health endpoint is working',
+            'uptime': (datetime.now() - START_TIME).total_seconds(),
+            'error': 'Main routes failed to register'
+        })
+        
+    @app.route('/api/profiles', methods=['GET', 'OPTIONS'])
+    def emergency_profiles():
+        """緊急用のプロファイルエンドポイント"""
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            return response
+            
+        # 応急処置としてのプロファイル情報
+        default_profile = {
+            'id': 'emergency_profile',
+            'name': 'Emergency Profile',
+            'description': 'Fallback profile when main routes fail to register',
+            'created_at': '2025-03-23T00:00:00Z',
+            'active': True,
+            'is_active': True
+        }
+        
+        return jsonify({
+            'profiles': [default_profile],
+            'active_profile': 'emergency_profile',
+            'profiles_dir': PROFILES_DIR
+        })
 
 if __name__ == '__main__':
     # ディレクトリ存在確認と作成

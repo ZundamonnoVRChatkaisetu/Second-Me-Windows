@@ -19,7 +19,11 @@ const apiClient = axios.create({
 // リクエスト時のインターセプター（デバッグ用）
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(`API Request to ${config.url}`);
+    console.log(`API Request to ${config.url}, Method: ${config.method?.toUpperCase()}`);
+    console.log('Request Headers:', config.headers);
+    if (config.data) {
+      console.log('Request Data:', config.data);
+    }
     // CORSヘッダーを追加
     config.headers['Access-Control-Allow-Origin'] = '*';
     return config;
@@ -34,12 +38,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     console.log(`API Response from ${response.config.url}: Status ${response.status}`);
+    console.log('Response Headers:', response.headers);
+    console.log('Response Data:', response.data);
     return response;
   },
   (error) => {
     // ネットワークエラーの場合
     if (!error.response) {
       console.error('API Network Error - No response received');
+      console.error('Error Details:', error);
       return Promise.reject({
         ...error,
         message: 'バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。',
@@ -52,7 +59,7 @@ apiClient.interceptors.response.use(
       console.error('API CORS Error - Blocked by browser security policy');
       return Promise.reject({
         ...error,
-        message: 'CORSエラーが発生しました。start-with-cors.batを使用してサーバーを再起動してください。',
+        message: 'CORSエラーが発生しました。サーバーを再起動してください。',
         isCorsError: true
       });
     }
@@ -60,6 +67,9 @@ apiClient.interceptors.response.use(
     // その他のエラー
     if (error.response) {
       console.error(`API Error: ${error.response.status} - ${error.response.data?.error || 'Unknown error'}`);
+      console.error('Error Response Data:', error.response.data);
+      console.error('Error Response Headers:', error.response.headers);
+      
       // エラーに詳細情報を追加
       return Promise.reject({
         ...error,
@@ -87,7 +97,18 @@ export const checkBackendHealth = async (): Promise<boolean> => {
     return response.status === 200;
   } catch (error) {
     console.error('Backend health check failed:', error);
-    return false;
+    // 代替パスでも試行
+    try {
+      console.log(`Retrying with alternative endpoint: ${BACKEND_URL}/health`);
+      const altResponse = await axios.get(`${BACKEND_URL}/health`, {
+        timeout: 5000
+      });
+      console.log('Alternative health check response:', altResponse.data);
+      return altResponse.status === 200;
+    } catch (altError) {
+      console.error('Alternative health check also failed:', altError);
+      return false;
+    }
   }
 };
 
